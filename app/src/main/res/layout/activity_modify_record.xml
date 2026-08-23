@@ -10,76 +10,65 @@
         android:layout_height="match_parent"
         xmlns:app="http://schemas.android.com/apk/res-auto"
         xmlns:tools="http://schemas.android.com/tools"
+        android:background="@color/colorBackground"
         android:orientation="vertical"
-        android:padding="10dp">
+        android:padding="16dp">
 
         <EditText
             android:id="@+id/subject_edittext"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
+            android:layout_marginBottom="16dp"
             android:ems="10"
+            android:textAppearance="@style/TextAppearance.BookStore.Title"
             android:hint="@string/enter_title" />
 
         <EditText
             android:id="@+id/author_edittext"
-            android:layout_width="387dp"
-            android:layout_height="54dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:ems="10"
             android:hint="@string/enter_desc"
-            android:minLines="5"
-            android:layout_marginBottom="10dp" />
+            android:textAppearance="@style/TextAppearance.BookStore.Body"
+            android:layout_marginBottom="16dp" />
 
         <EditText
             android:id="@+id/isbn_edittext"
-            android:layout_width="387dp"
-            android:layout_height="54dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:ems="10"
             android:hint="@string/enter_isbn"
-            android:minLines="5"
-            android:layout_marginBottom="10dp"
+            android:textAppearance="@style/TextAppearance.BookStore.Body"
+            android:layout_marginBottom="16dp"
             />
 
         <LinearLayout
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:weightSum="2"
-            android:gravity="center_horizontal"
             android:orientation="horizontal" >
 
             <Button
                 android:id="@+id/btn_update"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="@color/colorPrimary"
+                android:textColor="#FFFFFF"
                 android:text="@string/btn_update" />
 
             <Button
                 android:id="@+id/btn_delete"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="@color/colorError"
+                android:textColor="#FFFFFF"
                 android:text="@string/btn_delete" />
         </LinearLayout>
 
     </LinearLayout>
-
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_modify"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true"
-        android:layout_marginBottom="32dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginRight="24dp"
-        android:clickable="true"
-        android:elevation="16dp"
-        android:focusable="true"
-        app:srcCompat="@drawable/ic_cancel_24px"
-        android:visibility="visible"
-        app:backgroundTint="#ffffff"
-        app:pressedTranslationZ="12dp"
-        tools:targetApi="lollipop" />
 </RelativeLayout>

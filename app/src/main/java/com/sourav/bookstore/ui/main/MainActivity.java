@@ -1,4 +1,4 @@
-package com.sourav.bookstore;
+package com.sourav.bookstore.ui.main;
 
 import android.os.Bundle;
 import android.view.View;
@@ -9,8 +9,7 @@ import android.widget.Toast;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
-import com.sourav.bookstore.ui.main.DatabaseFragment;
-import com.sourav.bookstore.ui.main.SectionsPagerAdapter;
+import com.sourav.bookstore.R;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;

@@ -1,0 +1,383 @@
+package com.sourav.bookstore.network;
+
+import android.os.Build;
+
+import androidx.annotation.RequiresApi;
+
+import com.sourav.bookstore.BuildConfig;
+
+import org.apache.commons.lang3.StringUtils;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StringReader;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+/**
+ * Given an ISBN, resolves book metadata in this order: Google Books directly; if that has no
+ * match, LibraryThing's thingISBN API is asked for the ISBNs of other editions of the same work
+ * (a simple {@code <idlist><isbn>...</isbn>...</idlist>} XML document), and each of those is
+ * tried against Google Books, then the Library of Congress's SRU/MODS catalog, until one hits;
+ * Biblio.com's page title is the last resort. {@link #resolveMetadata(String)} is the single
+ * entry point. Each source is responsible for fetching *and* interpreting its own response --
+ * callers only ever see structured {@link BookMetadata}, never raw JSON/XML/HTML.
+ */
+public class BookMetadataLookupService {
+
+    private static final String LIBRARY_THING_LINK = "https://www.librarything.com/api/" + BuildConfig.LIBRARY_THING_API_KEY + "/thingISBN/";
+    private static final String GOOGLE_API_LINK = "https://www.googleapis.com/books/v1/volumes?q=isbn:";
+    private static final String GOOGLE_API_KEY_PARAM = "&key=" + BuildConfig.GOOGLE_BOOKS_API_KEY;
+    private static final String LOC_LINK = "http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=bath.isbn=";
+    private static final String LOC_LINK_SUFFIX = "&maximumRecords=1&recordSchema=mods";
+    private static final String BIBLIO_LINK = "https://www.biblio.com/";
+
+    /**
+     * A popular work can have hundreds of related editions in LibraryThing's idlist; bound how
+     * many we're willing to try against Google Books/LOC so a lookup can't turn into hundreds of
+     * sequential network round-trips.
+     */
+    private static final int MAX_RELATED_ISBNS_TO_TRY = 30;
+
+    public enum Source {
+        GOOGLE_BOOKS,
+        LIBRARY_OF_CONGRESS,
+        HTML_FALLBACK
+    }
+
+    public static class BookMetadata {
+        public final String title;
+        public final String author;
+        public final String thumbnailUrl;
+
+        BookMetadata(String title, String author, String thumbnailUrl) {
+            this.title = title;
+            this.author = author;
+            this.thumbnailUrl = thumbnailUrl;
+        }
+    }
+
+    /**
+     * {@code metadata} is non-null only when a title/author were actually resolved (from any
+     * source). {@code resolvedIsbn} is set independently of that -- it reflects whichever ISBN
+     * the fetch chain actually landed on (which can differ from the ISBN passed in, since a
+     * related edition's ISBN may be the one that resolved), and can be non-null even when {@code
+     * metadata} is null.
+     */
+    public static class MetadataResult {
+        public final Source source;
+        public final BookMetadata metadata;
+        public final String resolvedIsbn;
+
+        private MetadataResult(Source source, BookMetadata metadata, String resolvedIsbn) {
+            this.source = source;
+            this.metadata = metadata;
+            this.resolvedIsbn = resolvedIsbn;
+        }
+
+        private static MetadataResult found(Source source, BookMetadata metadata, String resolvedIsbn) {
+            return new MetadataResult(source, metadata, resolvedIsbn);
+        }
+
+        private static MetadataResult error(String resolvedIsbn) {
+            return new MetadataResult(null, null, resolvedIsbn);
+        }
+
+        public boolean isError() {
+            return metadata == null;
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    public MetadataResult resolveMetadata(String isbn) {
+        return lookup(isbn);
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    private MetadataResult lookup(String isbn) {
+        MetadataResult direct = tryGoogleBooks(isbn);
+        if (direct != null) {
+            return direct;
+        }
+
+        List<String> relatedIsbns = fetchRelatedIsbns(isbn);
+        int attempts = Math.min(relatedIsbns.size(), MAX_RELATED_ISBNS_TO_TRY);
+        for (int i = 0; i < attempts; i++) {
+            String candidate = relatedIsbns.get(i);
+
+            MetadataResult googleResult = tryGoogleBooks(candidate);
+            if (googleResult != null) {
+                return googleResult;
+            }
+
+            MetadataResult locResult = tryLibraryOfCongress(candidate);
+            if (locResult != null) {
+                return locResult;
+            }
+        }
+
+        MetadataResult biblio = tryBiblio(isbn);
+        if (biblio != null) {
+            return biblio;
+        }
+
+        return MetadataResult.error(null);
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    private MetadataResult tryGoogleBooks(String isbn) {
+        try {
+            URL url = new URL(GOOGLE_API_LINK + isbn + GOOGLE_API_KEY_PARAM);
+            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+            String content = br.lines().collect(Collectors.joining());
+            br.close();
+
+            if (content.contains("\"totalItems\": 0")) {
+                return null;
+            }
+            return parseGoogleBooksJson(content, isbn);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private MetadataResult parseGoogleBooksJson(String content, String isbn) {
+        try {
+            JSONObject resultObject = new JSONObject(content);
+            JSONArray bookArray = resultObject.getJSONArray("items");
+            JSONObject bookObject = bookArray.getJSONObject(0);
+            JSONObject volumeObject = bookObject.getJSONObject("volumeInfo");
+
+            String title;
+            try {
+                title = volumeObject.getString("title");
+            } catch (JSONException jse) {
+                title = "";
+                jse.printStackTrace();
+            }
+
+            String author;
+            try {
+                JSONArray authorArray = volumeObject.getJSONArray("authors");
+                StringBuilder authorBuild = new StringBuilder("");
+                for (int a = 0; a < authorArray.length(); a++) {
+                    if (a > 0) authorBuild.append(", ");
+                    authorBuild.append(authorArray.getString(a));
+                }
+                author = authorBuild.toString();
+            } catch (JSONException jse) {
+                author = "";
+                jse.printStackTrace();
+            }
+
+            String thumbnailUrl;
+            try {
+                JSONObject imageInfo = volumeObject.getJSONObject("imageLinks");
+                thumbnailUrl = imageInfo.getString("smallThumbnail");
+            } catch (JSONException jse) {
+                thumbnailUrl = null;
+                jse.printStackTrace();
+            }
+
+            return MetadataResult.found(Source.GOOGLE_BOOKS, new BookMetadata(title, author, thumbnailUrl), isbn);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Asks LibraryThing's thingISBN API for the ISBNs of other editions/translations of the same
+     * work, e.g.:
+     * <pre>{@code
+     * <idlist>
+     * <isbn>0312995458</isbn>
+     * <isbn>0312289901</isbn>
+     * ...
+     * </idlist>
+     * }</pre>
+     * Returns an empty list (never null) if the request fails or no related ISBNs are found, so
+     * callers can iterate the result unconditionally.
+     */
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    private List<String> fetchRelatedIsbns(String isbn) {
+        try {
+            URL url = new URL(LIBRARY_THING_LINK + isbn);
+            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+            String xml = br.lines().collect(Collectors.joining());
+            br.close();
+            return parseIsbnList(xml);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
+    List<String> parseIsbnList(String xml) {
+        List<String> isbns = new ArrayList<>();
+        try {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Document document = builder.parse(new InputSource(new StringReader(xml)));
+            NodeList isbnNodes = document.getElementsByTagName("isbn");
+            for (int i = 0; i < isbnNodes.getLength(); i++) {
+                isbns.add(isbnNodes.item(i).getTextContent());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return isbns;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    private MetadataResult tryLibraryOfCongress(String isbn) {
+        try {
+            URL url = new URL(LOC_LINK + isbn + LOC_LINK_SUFFIX);
+            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+            String xml = br.lines().collect(Collectors.joining());
+            br.close();
+            return parseLocMods(xml, isbn);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Parses a Library of Congress SRU response in MODS format, e.g. (trimmed):
+     * <pre>{@code
+     * <zs:searchRetrieveResponse xmlns:zs="http://www.loc.gov/zing/srw/">
+     * <zs:numberOfRecords>1</zs:numberOfRecords>
+     * <zs:records><zs:record><zs:recordData>
+     * <mods xmlns="http://www.loc.gov/mods/v3">
+     *   <titleInfo><title>Robert Ludlum's The Altman code</title></titleInfo>
+     *   <name type="personal" usage="primary"><namePart>Lynds, Gayle.</namePart></name>
+     *   ...
+     *   <relatedItem><name type="personal"><namePart>Ludlum, Robert,</namePart></name></relatedItem>
+     * </mods>
+     * </zs:recordData></zs:record></zs:records>
+     * </zs:searchRetrieveResponse>
+     * }</pre>
+     * A miss is {@code <zs:numberOfRecords>0</zs:numberOfRecords>} with no {@code <zs:records>}
+     * at all. The parser is namespace-unaware (same as {@link #parseIsbnList}), so the SRW
+     * wrapper elements keep their literal {@code zs:} prefix in {@code getNodeName()} -- that's
+     * why {@code "zs:numberOfRecords"} is looked up by its full prefixed name below.
+     *
+     * <p>Title/author are read from {@code <mods>}'s <em>direct</em> children only, not via
+     * {@code getElementsByTagName} -- that would also match the {@code <name>}/{@code <title>}
+     * elements nested inside {@code <subject>}/{@code <relatedItem>} (e.g. a related work's
+     * author, or a fictional character's name used as a subject heading), neither of which is
+     * this book's actual title/author.
+     */
+    MetadataResult parseLocMods(String xml, String isbn) {
+        try {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Document document = builder.parse(new InputSource(new StringReader(xml)));
+
+            NodeList countNodes = document.getElementsByTagName("zs:numberOfRecords");
+            if (countNodes.getLength() == 0 || "0".equals(countNodes.item(0).getTextContent())) {
+                return null;
+            }
+
+            NodeList modsNodes = document.getElementsByTagName("mods");
+            if (modsNodes.getLength() == 0) {
+                return null;
+            }
+            Element mods = (Element) modsNodes.item(0);
+
+            String title = "";
+            Element titleInfo = firstDirectChildElement(mods, "titleInfo");
+            if (titleInfo != null) {
+                Element titleElement = firstDirectChildElement(titleInfo, "title");
+                if (titleElement != null) {
+                    title = titleElement.getTextContent();
+                }
+            }
+
+            String author = "";
+            NodeList children = mods.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                Node node = children.item(i);
+                if (node.getNodeType() == Node.ELEMENT_NODE && node.getNodeName().equals("name")) {
+                    Element nameElement = (Element) node;
+                    if ("primary".equals(nameElement.getAttribute("usage"))) {
+                        Element namePart = firstDirectChildElement(nameElement, "namePart");
+                        if (namePart != null) {
+                            author = namePart.getTextContent();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            return MetadataResult.found(Source.LIBRARY_OF_CONGRESS, new BookMetadata(title, author, null), isbn);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private Element firstDirectChildElement(Element parent, String tagName) {
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node node = children.item(i);
+            if (node.getNodeType() == Node.ELEMENT_NODE && node.getNodeName().equals(tagName)) {
+                return (Element) node;
+            }
+        }
+        return null;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    private MetadataResult tryBiblio(String isbn) {
+        try {
+            URL url = new URL(BIBLIO_LINK + isbn);
+            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+            String content = br.lines().collect(Collectors.joining());
+            br.close();
+
+            if (content.contains("Page not Found")) {
+                return null;
+            }
+            return parseBiblioHtml(content, isbn);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private MetadataResult parseBiblioHtml(String content, String isbn) {
+        try {
+            String outputString = StringUtils.substringBetween(content, "<title>", "</title>");
+            System.out.println(outputString);
+
+            String[] splitter = outputString.split(" - ");
+            outputString = splitter[1];
+            String[] resplitter = outputString.split("by ");
+
+            String author = resplitter[resplitter.length - 1];
+            String[] titleParts = Arrays.copyOf(resplitter, resplitter.length - 1);
+            String title = String.join(" ", titleParts);
+
+            return MetadataResult.found(Source.HTML_FALLBACK, new BookMetadata(title, author, null), isbn);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+            return null;
+        }
+    }
+}

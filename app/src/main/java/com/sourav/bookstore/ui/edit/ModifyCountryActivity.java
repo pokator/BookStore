@@ -1,16 +1,17 @@
-package com.sourav.bookstore;
+package com.sourav.bookstore.ui.edit;
 
 import android.view.View;
+import android.view.MenuItem;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
 
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.sourav.bookstore.R;
+import com.sourav.bookstore.data.DBManager;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentTransaction;
 
 public class ModifyCountryActivity extends AppCompatActivity implements View.OnClickListener {
     private EditText titleText;
@@ -22,13 +23,14 @@ public class ModifyCountryActivity extends AppCompatActivity implements View.OnC
 
     private DBManager dbManager;
 
-    private FloatingActionButton fab;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setTitle("Modify Record");
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         setContentView(R.layout.activity_modify_record);
 
@@ -54,11 +56,17 @@ public class ModifyCountryActivity extends AppCompatActivity implements View.OnC
         authorText.setText(author);
         isbnText.setText(isbn);
 
-        fab = (FloatingActionButton) findViewById(R.id.fab_modify);
-        fab.setOnClickListener(this);
-
         updateBtn.setOnClickListener(this);
         deleteBtn.setOnClickListener(this);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -73,12 +81,21 @@ public class ModifyCountryActivity extends AppCompatActivity implements View.OnC
                 this.returnHome();
                 break;
             case R.id.btn_delete:
-                dbManager.delete(_id);
-                this.returnHome();
+                confirmDelete();
                 break;
-            case R.id.fab_modify:
-                finish();
         }
+    }
+
+    private void confirmDelete() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.delete_confirmation_title)
+                .setMessage(R.string.delete_confirmation_message)
+                .setPositiveButton(R.string.btn_delete, (dialog, which) -> {
+                    dbManager.delete(_id);
+                    returnHome();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     public void returnHome() {

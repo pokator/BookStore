@@ -1,4 +1,4 @@
-package com.sourav.bookstore;
+package com.sourav.bookstore.data;
 
 public class DuplicateEntryException extends Throwable {
 

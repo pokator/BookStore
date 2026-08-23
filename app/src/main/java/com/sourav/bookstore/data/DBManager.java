@@ -1,4 +1,4 @@
-package com.sourav.bookstore;
+package com.sourav.bookstore.data;
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -7,10 +7,6 @@ import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import android.provider.ContactsContract;
-
-import com.sourav.bookstore.ui.main.DatabaseFragment;
-
-import java.sql.PreparedStatement;
 
 public class DBManager {
     private DatabaseHelper dbHelper;
@@ -50,29 +46,20 @@ public class DBManager {
         return cursor;
     }
 
-    public Cursor search(String keyword){
-        keyword = keyword.replaceAll("'","''");
-        String query = "SELECT " + DatabaseHelper._ID + ", " + DatabaseHelper.AUTHOR + " FROM " + DatabaseHelper.TABLE_NAME + " WHERE " + DatabaseHelper.AUTHOR + " LIKE '%" + keyword + "%' GROUP BY " + DatabaseHelper.AUTHOR +";";
-        Cursor cursor = database.rawQuery(query, null);
-
-        if(cursor.getCount() <= 0){
-            cursor.close();
-            return null;
-        }else{
-            return cursor;
-        }
-    }
-
-    public Cursor authorSearch(String keyword){
-        keyword = keyword.replaceAll("'","''");
-        String query = "SELECT " + DatabaseHelper._ID + ", " + DatabaseHelper.TITLE + ", " + DatabaseHelper.ISBN + " FROM " + DatabaseHelper.TABLE_NAME + " WHERE " + DatabaseHelper.AUTHOR + " LIKE '%" + keyword + "%'";
-        Cursor cursor = database.rawQuery(query, null);
-        if(cursor.getCount() <= 0){
-            cursor.close();
-            return null;
-        }else{
-            return cursor;
-        }
+    /**
+     * Matches {@code keyword} against title, author, or ISBN (OR'd, case-insensitive substring
+     * match via SQLite's default LIKE behavior), sorted by {@code sortColumn} -- always one of
+     * {@link DatabaseHelper#TITLE}/{@link DatabaseHelper#AUTHOR}/{@link DatabaseHelper#_ID},
+     * supplied by the caller from a fixed set of sort choices, never raw user text, so building
+     * the ORDER BY clause from it directly is safe. An empty keyword matches every row.
+     */
+    public Cursor search(String keyword, String sortColumn, boolean ascending) {
+        String[] columns = new String[] { DatabaseHelper._ID, DatabaseHelper.TITLE, DatabaseHelper.AUTHOR, DatabaseHelper.ISBN };
+        String selection = DatabaseHelper.TITLE + " LIKE ? OR " + DatabaseHelper.AUTHOR + " LIKE ? OR " + DatabaseHelper.ISBN + " LIKE ?";
+        String likeArg = "%" + keyword + "%";
+        String[] selectionArgs = new String[] { likeArg, likeArg, likeArg };
+        String orderBy = sortColumn + (ascending ? " ASC" : " DESC");
+        return database.query(DatabaseHelper.TABLE_NAME, columns, selection, selectionArgs, null, null, orderBy);
     }
 
     public int update(long _id, String title, String author, String isbn) {

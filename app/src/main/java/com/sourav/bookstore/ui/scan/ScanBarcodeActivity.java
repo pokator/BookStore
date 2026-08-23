@@ -1,4 +1,4 @@
-package com.sourav.bookstore;
+package com.sourav.bookstore.ui.scan;
 
 import android.Manifest;
 import android.app.Activity;
@@ -10,6 +10,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import com.google.android.gms.common.api.CommonStatusCodes;
+import com.sourav.bookstore.R;
 import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.barcode.Barcode;

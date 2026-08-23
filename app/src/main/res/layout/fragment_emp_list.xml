@@ -5,12 +5,49 @@
     android:layout_height="fill_parent"
     xmlns:tools="http://schemas.android.com/tools"
     android:tag="@string/fragment_emp_list"
-    android:id="@+id/fragment_emp_list">
+    android:id="@+id/fragment_emp_list"
+    android:background="@color/colorBackground">
+
+    <LinearLayout
+        android:id="@+id/search_sort_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:orientation="horizontal"
+        android:paddingLeft="8dp"
+        android:paddingTop="8dp"
+        android:paddingRight="8dp"
+        android:paddingBottom="4dp">
+
+        <EditText
+            android:id="@+id/search_edittext"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="@string/search_hint"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.BookStore.Body" />
+
+        <ImageButton
+            android:id="@+id/sort_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginLeft="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/sort_button_description"
+            android:padding="8dp"
+            android:src="@drawable/ic_sort_24px"
+            app:tint="@color/colorPrimary" />
+
+    </LinearLayout>
 
     <ListView
         android:id="@+id/list_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_below="@id/search_sort_bar"
+        android:divider="@color/colorPlaceholder"
         android:dividerHeight="1dp"
         android:padding="5dp">
 
@@ -22,24 +59,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
+        android:textAppearance="@style/TextAppearance.BookStore.Body"
         android:text="@string/empty_list_text" />
-
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_test"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true"
-        android:layout_marginBottom="32dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginRight="24dp"
-        android:clickable="true"
-        android:elevation="16dp"
-        android:focusable="true"
-        android:visibility="visible"
-        app:backgroundTint="#ffffff"
-        app:pressedTranslationZ="12dp"
-        app:srcCompat="@drawable/ic_search_24px"
-        tools:targetApi="lollipop" />
 </RelativeLayout>

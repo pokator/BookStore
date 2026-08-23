@@ -12,7 +12,7 @@
         android:layout_alignParentTop="true"
         android:layout_marginRight="6dp"
         android:padding="3dp"
-        android:visibility="visible" />
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/title"
@@ -22,8 +22,7 @@
         android:layout_toRightOf="@id/id"
         android:maxLines="1"
         android:padding="3dp"
-        android:textSize="17sp"
-        android:textStyle="bold" />
+        android:textAppearance="@style/TextAppearance.BookStore.Title" />
 
     <TextView
         android:id="@+id/desc"
@@ -35,6 +34,7 @@
         android:ellipsize="end"
         android:maxLines="2"
         android:padding="3dp"
+        android:textAppearance="@style/TextAppearance.BookStore.Body"
         android:visibility="visible" />
 
     <TextView
@@ -47,6 +47,7 @@
         android:ellipsize="end"
         android:maxLines="2"
         android:padding="3dp"
+        android:textAppearance="@style/TextAppearance.BookStore.Caption"
         android:visibility="visible" />
 
 

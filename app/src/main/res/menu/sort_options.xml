@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/sort_title_asc" android:title="Title (A–Z)" />
+    <item android:id="@+id/sort_title_desc" android:title="Title (Z–A)" />
+    <item android:id="@+id/sort_author_asc" android:title="Author (A–Z)" />
+    <item android:id="@+id/sort_author_desc" android:title="Author (Z–A)" />
+    <item android:id="@+id/sort_date_newest" android:title="Date Added (Newest)" />
+    <item android:id="@+id/sort_date_oldest" android:title="Date Added (Oldest)" />
+</menu>

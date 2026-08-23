@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#6200EE</color>
-    <color name="colorPrimaryDark">#3700B3</color>
-    <color name="colorAccent">#03DAC5</color>
+    <!-- Deep navy / warm gold: a literary, "library" palette (replaces the old purple/teal). -->
+    <color name="colorPrimary">#1E3A5F</color>
+    <color name="colorPrimaryDark">#14283F</color>
+    <color name="colorAccent">#D4A017</color>
+    <color name="colorOnPrimary">#FFFFFF</color>
+    <color name="colorOnAccent">#1E3A5F</color>
+    <color name="colorError">#B00020</color>
+
+    <color name="colorBackground">#F7F3EB</color>
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorPlaceholder">#E7E0D2</color>
+
+    <color name="colorTextPrimary">#22262B</color>
+    <color name="colorTextSecondary">#6B6F76</color>
 </resources>

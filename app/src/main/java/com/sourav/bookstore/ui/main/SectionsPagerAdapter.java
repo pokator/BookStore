@@ -9,6 +9,8 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
 
 import com.sourav.bookstore.R;
+import com.sourav.bookstore.ui.home.HomeFragment;
+import com.sourav.bookstore.ui.library.DatabaseFragment;
 
 /**
  * A [FragmentPagerAdapter] that returns a fragment corresponding to

@@ -15,9 +15,9 @@
 
     <string name="home_second">Home Second</string>
     <string name="todo">TODO</string>
-    <string name="scan_a_barcode">Book not found yet.</string>
+    <string name="scan_a_barcode">No book yet. Scan a barcode or enter an ISBN.</string>
     <string name="welcome">Welcome!</string>
-    <string name="homepage_description">Click the bottom-right button to enter a book into the app. Switch tabs to see current books.</string>
+    <string name="homepage_description">Click the bottom-right button to enter a book into the app. Switch tabs to see saved books.</string>
     <string name="add">Add</string>
     <string name="empty_list_text">List is empty.</string>
     <string name="enter_title">Enter Title</string>
@@ -34,5 +34,15 @@
     <string name="fragment_emp_list">fragment_emp_list</string>
     <string name="enter_isbn">Enter ISBN</string>
     <string name="activity_add_record" />
-    <string name="fragment_author_books" />
+    <string name="search_hint">Search title, author, or ISBN</string>
+    <string name="sort_button_description">Sort books</string>
+    <string name="book_cover_description">Book cover</string>
+    <string name="delete_confirmation_title">Delete this book?</string>
+    <string name="delete_confirmation_message">This can\'t be undone.</string>
+    <string name="cancel">Cancel</string>
+    <string name="status_isbn">ISBN: %1$s</string>
+    <string name="status_no_barcode">No barcode found. Try again.</string>
+    <string name="status_manual_entry_invalid">Enter both a title and an author.</string>
+    <string name="status_isbn_invalid">Enter an ISBN.</string>
+    <string name="status_lookup_error">Couldn\'t find that book. Try again or enter it manually.</string>
 </resources>

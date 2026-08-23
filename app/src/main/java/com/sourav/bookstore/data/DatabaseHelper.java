@@ -1,4 +1,4 @@
-package com.sourav.bookstore;
+package com.sourav.bookstore.data;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
