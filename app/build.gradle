@@ -34,7 +34,22 @@ android {
         buildConfig true
     }
 
+    signingConfigs {
+        debug {
+            // Pinned in-repo so the debug signature stays stable across machines/reinstalls,
+            // instead of relying on the per-machine ~/.android/debug.keystore (which regenerates
+            // on a fresh profile/Studio install and causes INSTALL_FAILED_UPDATE_INCOMPATIBLE).
+            storeFile file('bookstore-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
