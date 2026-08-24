@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.util.SparseArray;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.api.CommonStatusCodes;
 import com.sourav.bookstore.R;
@@ -18,9 +19,12 @@ import com.google.android.gms.vision.barcode.BarcodeDetector;
 
 import java.io.IOException;
 
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 public class ScanBarcodeActivity extends Activity {
+    private static final int REQUEST_CAMERA_PERMISSION = 1;
+
     SurfaceView cameraPreview;
     @Override
     protected void onCreate(Bundle savedInstanceState){
@@ -28,7 +32,27 @@ public class ScanBarcodeActivity extends Activity {
         setContentView(R.layout.activity_scan_barcode);
 
         cameraPreview = (SurfaceView) findViewById(R.id.camera_preview);
-        createCameraSource();
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
+            createCameraSource();
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                createCameraSource();
+            } else {
+                Toast.makeText(this, R.string.camera_permission_required, Toast.LENGTH_LONG).show();
+                finish();
+            }
+        }
     }
 
     private void createCameraSource() {

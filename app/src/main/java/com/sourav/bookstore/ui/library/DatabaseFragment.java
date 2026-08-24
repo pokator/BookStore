@@ -166,6 +166,14 @@ public class DatabaseFragment extends Fragment {
         // TODO: Use the ViewModel
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Re-query so edits/deletes made in ModifyCountryActivity show up immediately on return,
+        // instead of only refreshing when setUserVisibleHint's tab-switch hack below fires.
+        refreshList();
+    }
+
 //    //Deprecated Method, need to find a future fix
     @Deprecated
     @Override
