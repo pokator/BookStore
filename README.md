@@ -14,6 +14,11 @@ metadata online and stores it locally in SQLite.
   title, author(s), and a cover thumbnail; if that misses, it asks LibraryThing's `thingISBN`
   API for ISBNs of other editions of the same work and retries each against Google Books, then
   the Library of Congress's SRU/MODS catalog; a Biblio.com page scrape is the last resort.
+- **"Do I already own this?"** — as soon as a scanned or entered book loads, the preview card
+  says whether it's already in your library. Matching is fuzzy, so a different edition, a
+  dropped subtitle or an author written back-to-front still counts: an ISBN hit reads "Already
+  in your library", a close title/author hit reads "Looks like you already own this: <title>",
+  and anything else reads "Not in your library yet".
 - **Local library** — all saved books live in a local SQLite database (title, author, ISBN).
 - **Browse, search & sort** — the "Books Stored" tab lists every stored book with an inline
   search box (matches title, author, or ISBN, filtering live as you type) and a compact sort

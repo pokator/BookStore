@@ -46,4 +46,7 @@
     <string name="status_manual_entry_invalid">Enter both a title and an author.</string>
     <string name="status_isbn_invalid">Enter an ISBN.</string>
     <string name="status_lookup_error">Couldn\'t find that book. Try again or enter it manually.</string>
+    <string name="status_owned_isbn">Already in your library</string>
+    <string name="status_owned_similar">Looks like you already own this: %1$s</string>
+    <string name="status_not_owned">Not in your library yet</string>
 </resources>

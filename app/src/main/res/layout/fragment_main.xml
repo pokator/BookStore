@@ -90,6 +90,26 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent" />
 
+                <!-- Ownership verdict for the book currently shown: filled in by
+                     HomeFragment once a lookup resolves (gone until then, and while the card is
+                     in its empty state). Sits between the ISBN line and Add so the user reads
+                     "you already own this" before reaching for the button. -->
+                <TextView
+                    android:id="@+id/ownership_banner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:padding="10dp"
+                    android:visibility="gone"
+                    android:textAppearance="@style/TextAppearance.BookStore.Banner"
+                    app:layout_constraintTop_toBottomOf="@id/barcode_result"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    tools:background="@drawable/bg_banner_owned"
+                    tools:text="Already in your library"
+                    tools:visibility="visible" />
+
                 <Button
                     android:id="@+id/add_button"
                     android:layout_width="match_parent"
@@ -98,7 +118,7 @@
                     android:backgroundTint="@color/colorAccent"
                     android:textColor="@color/colorOnAccent"
                     android:text="@string/add"
-                    app:layout_constraintTop_toBottomOf="@id/barcode_result"
+                    app:layout_constraintTop_toBottomOf="@id/ownership_banner"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent" />
 

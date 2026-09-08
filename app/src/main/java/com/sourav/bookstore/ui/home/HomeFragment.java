@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.database.SQLException;
 import android.graphics.Bitmap;
 import android.graphics.Outline;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -24,6 +25,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.sourav.bookstore.R;
 import com.sourav.bookstore.data.DBManager;
 import com.sourav.bookstore.data.DuplicateEntryException;
+import com.sourav.bookstore.data.OwnershipMatcher;
 import com.sourav.bookstore.network.BookMetadataLookupService;
 import com.sourav.bookstore.ui.main.PageViewModel;
 import com.sourav.bookstore.ui.scan.ScanBarcodeActivity;
@@ -31,6 +33,7 @@ import com.sourav.bookstore.ui.scan.ScanBarcodeActivity;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProviders;
 
@@ -60,7 +63,8 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
     private View addMenuPanel;
     private View addMenuScrim;
     private boolean addMenuOpen = false;
-    private TextView barcodeResult, titleText, authorText;
+    private TextView barcodeResult, titleText, authorText, ownershipBanner;
+    private Rect ownershipBannerPadding;
     private Bitmap thumbImg;
     private ImageView thumb;
     private Button addButton;
@@ -104,6 +108,13 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
         authorText = (TextView) view.findViewById(R.id.book_author);
         titleText = (TextView) view.findViewById(R.id.book_title);
         thumb = (ImageView) view.findViewById(R.id.thumb);
+        ownershipBanner = (TextView) view.findViewById(R.id.ownership_banner);
+        // setBackgroundResource() overwrites a view's padding with the new drawable's own (zero,
+        // for these shapes), so remember the layout's padding here and restore it every time the
+        // banner swaps between its owned/new backgrounds.
+        ownershipBannerPadding = new Rect(
+                ownershipBanner.getPaddingLeft(), ownershipBanner.getPaddingTop(),
+                ownershipBanner.getPaddingRight(), ownershipBanner.getPaddingBottom());
 
         if (savedInstanceState != null) {
             authorText.setText(savedInstanceState.getString("author"));
@@ -211,8 +222,52 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
         authorText.setText("");
         titleText.setText(R.string.scan_a_barcode);
         thumb.setImageBitmap(null);
+        ownershipBanner.setVisibility(View.GONE);
         addButton.setVisibility(View.INVISIBLE);
         addButton.setClickable(false);
+        // Clear the previous entry's ISBN too: it is what both the ownership check and addEntry()
+        // store, and a leftover value would attach the last scan's ISBN to this entry (and could
+        // make an unrelated book report as already owned).
+        isbn = null;
+        searchString = null;
+    }
+
+    /**
+     * Tells the user whether the book now on screen is one they already have stored, via the
+     * banner above the Add button -- an amber "already in your library" (or the softer "looks
+     * like you already own this: <stored title>" for a fuzzy title/author hit) versus a green
+     * "not in your library yet". Purely informational: {@link #addEntry()} still decides for
+     * itself whether the insert goes through, since a fuzzy hit is a likely match, not a certain
+     * one, and shouldn't be able to block adding a book the user really doesn't have.
+     */
+    private void showOwnershipStatus(String title, String author, String bookIsbn) {
+        if (!isAdded()) {
+            // The lookup can land after the fragment is detached; there is nothing to update.
+            return;
+        }
+
+        dbManager = new DBManager(this.getContext());
+        dbManager.open();
+        OwnershipMatcher.Match match = dbManager.findOwnedMatch(title, author, bookIsbn);
+
+        int background;
+        int textColor;
+        if (match == null) {
+            background = R.drawable.bg_banner_new;
+            textColor = R.color.colorNewText;
+            ownershipBanner.setText(R.string.status_not_owned);
+        } else {
+            background = R.drawable.bg_banner_owned;
+            textColor = R.color.colorOwnedText;
+            ownershipBanner.setText(match.type == OwnershipMatcher.MatchType.ISBN
+                    ? getString(R.string.status_owned_isbn)
+                    : getString(R.string.status_owned_similar, match.title));
+        }
+        ownershipBanner.setBackgroundResource(background);
+        ownershipBanner.setPadding(ownershipBannerPadding.left, ownershipBannerPadding.top,
+                ownershipBannerPadding.right, ownershipBannerPadding.bottom);
+        ownershipBanner.setTextColor(ContextCompat.getColor(requireContext(), textColor));
+        ownershipBanner.setVisibility(View.VISIBLE);
     }
 
     public void textEntry(Context c) {
@@ -246,6 +301,8 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
                         if (!activeAuthors.isEmpty() && !activeTitle.isEmpty()) {
                             titleText.setText(activeTitle);
                             authorText.setText(activeAuthors);
+                            // No ISBN on this path, so the check runs on title/author alone.
+                            showOwnershipStatus(activeTitle, activeAuthors, null);
                             addButton.setVisibility(View.VISIBLE);
                             addButton.setClickable(true);
                         } else {
@@ -299,6 +356,9 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
             } else {
                 dbManager.insert(activeTitle, activeAuthors, isbn);
                 Toast.makeText(getActivity().getApplicationContext(), "Added!", Toast.LENGTH_SHORT).show();
+                // The book on screen is now owned; re-run the check so the banner says so instead
+                // of still reading "not in your library yet".
+                showOwnershipStatus(activeTitle, activeAuthors, isbn);
             }
         } catch (SQLException e) {
             Toast.makeText(getActivity().getApplicationContext(),
@@ -332,6 +392,11 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
         // Neither LIBRARY_OF_CONGRESS nor HTML_FALLBACK ever resolves a thumbnail -- leave
         // whatever is showing as-is.
 
+        // Prefer the ISBN the lookup settled on (a related edition's, when the scanned one missed)
+        // and fall back to what was scanned/typed, so the ISBN tier has something to work with
+        // even when the source didn't hand one back.
+        showOwnershipStatus(title, author, isbn != null ? isbn : searchString);
+
         addButton.setVisibility(View.VISIBLE);
         addButton.setClickable(true);
     }
@@ -341,6 +406,7 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
         titleText.setText(R.string.status_lookup_error);
         authorText.setText("");
         thumb.setImageBitmap(null);
+        ownershipBanner.setVisibility(View.GONE);
         addButton.setVisibility(View.INVISIBLE);
         addButton.setClickable(false);
     }

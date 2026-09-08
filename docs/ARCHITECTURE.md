@@ -32,6 +32,10 @@ HomeFragment
       ├─ ISBN Entry      → inline dialog for manual ISBN entry
       └─ Manual Entry    → inline dialog for manual title/author entry
       (any of the above populate a book preview card + "Add" button, which inserts into SQLite)
+      The preview card also carries an ownership banner between the ISBN line and the Add
+      button: amber "Already in your library" / "Looks like you already own this: <title>" or
+      green "Not in your library yet", decided by `DBManager.findOwnedMatch` (see the data-layer
+      section). It's informational only — Add still does its own exact `existenceCheck`.
 
 DatabaseFragment
  ├─ inline search box (title/author/ISBN, live-filters as you type)
@@ -76,6 +80,17 @@ obvious from the XML alone).
   `DuplicateEntryException`). Unlike the rest of this file, `search` is parameterized
   (`selectionArgs`, not string concatenation) — a deliberate choice made when it was added,
   since `orderBy` is built from a fixed, non-user-supplied column name.
+- `OwnershipMatcher` + `DBManager.findOwnedMatch(title, author, isbn)` answer "does the user
+  already own this book?" for the scan screen's ownership banner. `findOwnedMatch` scans the
+  whole `Books` table (edit distance isn't expressible in SQL, and a personal library is small)
+  and asks `OwnershipMatcher` about each row; `OwnershipMatcher` itself is pure static String
+  logic with no Android/DB types, so it's unit-testable without Robolectric. Two tiers: an
+  `ISBN` match (both sides normalized to ISBN-13, so a book's 10- and 13-digit printings match)
+  is treated as certain; a `TITLE_AUTHOR` match (normalized titles within an edit-distance
+  threshold, plus an overlapping author surname) is reported as a likely match. Differing ISBNs
+  don't veto a title/author match — a different edition of a book you own is the case the fuzzy
+  tier exists for. Distinct from `existenceCheck`, which stays exact because it *blocks* inserts;
+  the fuzzy result only informs the UI.
 - Every screen that touches the database creates its own `DBManager` instance and calls
   `open()` in `onCreate`/`onCreateView`; there's no shared/pooled connection or lifecycle-aware
   wrapper, and `close()` is rarely called explicitly.

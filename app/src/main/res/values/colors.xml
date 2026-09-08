@@ -14,4 +14,9 @@
 
     <color name="colorTextPrimary">#22262B</color>
     <color name="colorTextSecondary">#6B6F76</color>
+    <!-- Ownership banner on the scan screen: amber "you already have this" vs green "new". -->
+    <color name="colorOwnedBackground">#FBEFD3</color>
+    <color name="colorOwnedText">#7A5200</color>
+    <color name="colorNewBackground">#E6F1EA</color>
+    <color name="colorNewText">#1F5B3B</color>
 </resources>

@@ -55,4 +55,11 @@
         <item name="android:textColor">@color/colorTextPrimary</item>
     </style>
 
+    <!-- Ownership banner: the text color is set in code (it changes with the verdict), so this
+         style deliberately carries no textColor. -->
+    <style name="TextAppearance.BookStore.Banner" parent="android:TextAppearance">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
 </resources>

@@ -39,7 +39,9 @@ Organized by responsibility, not as one flat package — see `docs/ARCHITECTURE.
 picture:
 
 - `app/src/main/java/com/sourav/bookstore/data/` — `DBManager`/`DatabaseHelper`
-  (single `Books` table: `_id`, `Title`, `Author`, `ISBN`) + `DuplicateEntryException`.
+  (single `Books` table: `_id`, `Title`, `Author`, `ISBN`) + `DuplicateEntryException` +
+  `OwnershipMatcher` (the fuzzy "do I already own this?" rules behind
+  `DBManager.findOwnedMatch`).
 - `app/src/main/java/com/sourav/bookstore/network/` — `BookMetadataLookupService` (the Google
   Books/LibraryThing/Biblio.com fallback chain, returning structured metadata) and
   `ThumbnailFetcher`, both called from `ui/home/BookLookupTask.java`/`ThumbnailTask.java`
@@ -68,6 +70,15 @@ Test sources under `app/src/test/java/com/sourav/bookstore/` mirror this package
   tab's search box, built fresh rather than copying the concatenation pattern). Don't add new
   concatenated queries; if touching the other methods, prefer parameterized `selectionArgs` —
   but do this as a deliberate, scoped fix, not an incidental change.
+- **Two different "already have this?" checks, on purpose**: `DBManager.existenceCheck(title,
+  author)` is an exact equality test and *blocks* an insert (`DuplicateEntryException`);
+  `DBManager.findOwnedMatch(title, author, isbn)` is fuzzy (`data.OwnershipMatcher`: ISBN-13
+  normalization, then normalized-title edit distance + author surname overlap) and only feeds the
+  scan screen's ownership banner. Don't collapse them into one: fuzzy rules produce likely, not
+  certain, matches, and letting one veto an insert would block legitimate adds. If you loosen a
+  threshold in `OwnershipMatcher`, add the case to `OwnershipMatcherTest` — it deliberately pins
+  both the matches it must make (subtitles, articles, reordered names, other editions) and the
+  near-misses it must not (same author different book, same title different author).
 - **Metadata lookup fallback chain** (`network.BookMetadataLookupService.resolveMetadata`,
   called from `ui.home.BookLookupTask.doInBackground`): Google Books directly (keyed), then
   LibraryThing's `thingISBN` API for related-edition ISBNs (real XML parsing via
@@ -108,11 +119,14 @@ process-wide singleton, so tests wipe the `Books` table in `@Before` **and close
 since Robolectric tears down its native SQLite sandbox between test methods but the singleton's
 cached connection handle survives in the JVM unless explicitly closed.
 
-`app/src/test/java/com/sourav/bookstore/ui/{main,library,edit}/` hold one Robolectric test per
+`app/src/test/java/com/sourav/bookstore/ui/{main,library,edit,home}/` hold one Robolectric test per
 screen package, built on the same real-SQLite pattern, that build the actual Activity/Fragment
 and its real layout and check the Intent-extra contracts and DB reads/writes end to end (the
 `library` one now also covers the search box's live filtering and the sort popup menu's row
-ordering). These need `android.testOptions.unitTests.includeAndroidResources = true` (already set in
+ordering). `HomeFragmentTest` is the exception to "HomeFragment has no coverage": it drives the
+`BookLookupTask.Callback` methods directly (no network) and asserts only the ownership banner's
+state, and its host `FragmentActivity` needs `activity.setTheme(R.style.AppTheme)` before the
+fragment is committed or `fragment_main`'s Material FAB fails to inflate. These need `android.testOptions.unitTests.includeAndroidResources = true` (already set in
 `app/build.gradle`) — without it, Robolectric can't resolve the app's compiled
 theme/resources and Activity/Fragment tests fail with theme- or layout-inflation errors that
 look unrelated to the actual code change.

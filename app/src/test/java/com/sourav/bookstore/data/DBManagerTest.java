@@ -13,6 +13,8 @@ import org.robolectric.RobolectricTestRunner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -205,5 +207,64 @@ public class DBManagerTest {
         oldestFirst.moveToFirst();
         assertEquals("Dune", oldestFirst.getString(oldestFirst.getColumnIndexOrThrow(DatabaseHelper.TITLE)));
         oldestFirst.close();
+    }
+
+    // findOwnedMatch: the matching rules themselves live in OwnershipMatcherTest; these cover the
+    // scan-the-table-and-pick-a-winner part.
+
+    @Test
+    public void findOwnedMatch_returnsNull_whenDatabaseIsEmpty() {
+        assertNull(dbManager.findOwnedMatch("Dune", "Frank Herbert", "9780441013593"));
+    }
+
+    @Test
+    public void findOwnedMatch_returnsNull_whenNothingStoredResembles() {
+        dbManager.insert("Neuromancer", "William Gibson", "9780441569595");
+
+        assertNull(dbManager.findOwnedMatch("Dune", "Frank Herbert", "9780441013593"));
+    }
+
+    @Test
+    public void findOwnedMatch_findsTheStoredCopy_byIsbn() {
+        dbManager.insert("Neuromancer", "William Gibson", "9780441569595");
+        dbManager.insert("Dune", "Frank Herbert", "9780441013593");
+
+        OwnershipMatcher.Match match = dbManager.findOwnedMatch("Dune", "Frank Herbert", "9780441013593");
+
+        assertNotNull(match);
+        assertEquals(OwnershipMatcher.MatchType.ISBN, match.type);
+        assertEquals("Dune", match.title);
+    }
+
+    @Test
+    public void findOwnedMatch_findsADifferentEdition_byTitleAndAuthor() {
+        dbManager.insert("Dune", "Herbert, Frank", "9780441013593");
+
+        OwnershipMatcher.Match match = dbManager.findOwnedMatch("Dune: A Novel", "Frank Herbert",
+                "9780593099322");
+
+        assertNotNull(match);
+        assertEquals(OwnershipMatcher.MatchType.TITLE_AUTHOR, match.type);
+        assertEquals("Dune", match.title);
+    }
+
+    @Test
+    public void findOwnedMatch_prefersTheIsbnMatch_overAnEarlierFuzzyOne() {
+        // Same book stored twice: an untitled-ISBN fuzzy candidate first, the exact ISBN second.
+        dbManager.insert("Dune", "Frank Herbert", null);
+        dbManager.insert("Dune (Deluxe Edition)", "Frank Herbert", "9780441013593");
+
+        OwnershipMatcher.Match match = dbManager.findOwnedMatch("Dune", "Frank Herbert", "9780441013593");
+
+        assertNotNull(match);
+        assertEquals(OwnershipMatcher.MatchType.ISBN, match.type);
+        assertEquals("Dune (Deluxe Edition)", match.title);
+    }
+
+    @Test
+    public void findOwnedMatch_toleratesRowsWithNoIsbn() {
+        dbManager.insert("Dune", "Frank Herbert", null);
+
+        assertNotNull(dbManager.findOwnedMatch("Dune", "Frank Herbert", "9780441013593"));
     }
 }
