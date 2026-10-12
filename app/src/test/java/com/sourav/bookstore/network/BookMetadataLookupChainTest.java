@@ -21,7 +21,6 @@ public class BookMetadataLookupChainTest {
     static final String GOOGLE = "googleapis.com/books/v1/volumes?q=isbn:";
     static final String LIBRARY_THING = "/thingISBN/";
     static final String LOC = "bath.isbn=";
-    static final String BIBLIO = "biblio.com/";
 
     private static final String GATSBY = "9780743273565";
     private static final String CATCHER = "9780316769488";
@@ -154,8 +153,7 @@ public class BookMetadataLookupChainTest {
         FakeHttpFetcher http = new FakeHttpFetcher()
                 .respond(GOOGLE, Fixtures.read("google_miss.json"))
                 .respond(LIBRARY_THING, idlist.toString())
-                .respond(LOC, Fixtures.read("loc_miss.xml"))
-                .fail(BIBLIO);
+                .respond(LOC, Fixtures.read("loc_miss.xml"));
 
         BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
 
@@ -166,17 +164,17 @@ public class BookMetadataLookupChainTest {
     }
 
     @Test
-    public void libraryThingDown_fallsThroughToBiblio() {
+    public void libraryThingDown_afterEveryDirectMiss_isAnErrorResult() {
         FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
                 .respond(GOOGLE, Fixtures.read("google_miss.json"))
-                .fail(LIBRARY_THING)
-                .respond(BIBLIO + GATSBY,
-                        "<html><head><title>Biblio - The Great Gatsby by F. Scott Fitzgerald</title></head></html>");
+                .respond(LOC, Fixtures.read("loc_miss.xml"))
+                .fail(LIBRARY_THING);
 
         BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
 
-        assertEquals(BookMetadataLookupService.Source.HTML_FALLBACK, result.source);
-        assertEquals("F. Scott Fitzgerald", result.metadata.author);
+        assertTrue(result.isError());
+        assertEquals(4, http.requests.size());
     }
 
     @Test

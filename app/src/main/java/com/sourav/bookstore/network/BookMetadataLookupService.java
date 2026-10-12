@@ -2,7 +2,6 @@ package com.sourav.bookstore.network;
 
 import com.sourav.bookstore.BuildConfig;
 
-import org.apache.commons.lang3.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -15,7 +14,6 @@ import org.xml.sax.InputSource;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -30,8 +28,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
  * {@code <idlist><isbn>...</isbn>...</idlist>} XML document), each of which is tried against
  * Open Library, then LOC, until one hits. Related editions are a last resort on purpose:
  * LibraryThing's lists occasionally include an unrelated book (Catcher in the Rye's lists a
- * psychology text), and any hit on one is trusted as-is. Biblio.com's page title is the final
- * fallback. {@link #resolveMetadata(String)} is the single
+ * psychology text), and any hit on one is trusted as-is. (Biblio.com's page title used to be a
+ * final fallback; it now sits behind a Cloudflare bot challenge, so it was removed.) {@link #resolveMetadata(String)} is the single
  * entry point. Each source is responsible for fetching *and* interpreting its own response --
  * callers only ever see structured {@link BookMetadata}, never raw JSON/XML/HTML.
  */
@@ -43,7 +41,6 @@ public class BookMetadataLookupService {
     private static final String GOOGLE_API_KEY_PARAM = "&key=" + BuildConfig.GOOGLE_BOOKS_API_KEY;
     private static final String LOC_LINK = "http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=bath.isbn=";
     private static final String LOC_LINK_SUFFIX = "&maximumRecords=1&recordSchema=mods";
-    private static final String BIBLIO_LINK = "https://www.biblio.com/";
 
     /**
      * A popular work can have hundreds of related editions in LibraryThing's idlist; bound how
@@ -65,8 +62,7 @@ public class BookMetadataLookupService {
     public enum Source {
         OPEN_LIBRARY,
         GOOGLE_BOOKS,
-        LIBRARY_OF_CONGRESS,
-        HTML_FALLBACK
+        LIBRARY_OF_CONGRESS
     }
 
     public static class BookMetadata {
@@ -146,11 +142,6 @@ public class BookMetadataLookupService {
             if (locResult != null) {
                 return locResult;
             }
-        }
-
-        MetadataResult biblio = tryBiblio(isbn);
-        if (biblio != null) {
-            return biblio;
         }
 
         return MetadataResult.error(null);
@@ -407,39 +398,5 @@ public class BookMetadataLookupService {
             }
         }
         return null;
-    }
-
-    private MetadataResult tryBiblio(String isbn) {
-        try {
-            String content = http.get(BIBLIO_LINK + isbn);
-
-            if (content.contains("Page not Found")) {
-                return null;
-            }
-            return parseBiblioHtml(content, isbn);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    private MetadataResult parseBiblioHtml(String content, String isbn) {
-        try {
-            String outputString = StringUtils.substringBetween(content, "<title>", "</title>");
-            System.out.println(outputString);
-
-            String[] splitter = outputString.split(" - ");
-            outputString = splitter[1];
-            String[] resplitter = outputString.split("by ");
-
-            String author = resplitter[resplitter.length - 1];
-            String[] titleParts = Arrays.copyOf(resplitter, resplitter.length - 1);
-            String title = String.join(" ", titleParts);
-
-            return MetadataResult.found(Source.HTML_FALLBACK, new BookMetadata(title, author, null), isbn);
-        } catch (Exception e) {
-            e.printStackTrace(System.err);
-            return null;
-        }
     }
 }
