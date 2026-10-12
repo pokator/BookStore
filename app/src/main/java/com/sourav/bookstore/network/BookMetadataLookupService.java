@@ -139,7 +139,7 @@ public class BookMetadataLookupService {
         return MetadataResult.error(null);
     }
 
-    private MetadataResult tryGoogleBooks(String isbn) {
+    MetadataResult tryGoogleBooks(String isbn) {
         try {
             String content = http.get(GOOGLE_API_LINK + isbn + GOOGLE_API_KEY_PARAM);
 
@@ -211,7 +211,7 @@ public class BookMetadataLookupService {
      * Returns an empty list (never null) if the request fails or no related ISBNs are found, so
      * callers can iterate the result unconditionally.
      */
-    private List<String> fetchRelatedIsbns(String isbn) {
+    List<String> fetchRelatedIsbns(String isbn) {
         try {
             String xml = http.get(LIBRARY_THING_LINK + isbn);
             return parseIsbnList(xml);
@@ -236,7 +236,7 @@ public class BookMetadataLookupService {
         return isbns;
     }
 
-    private MetadataResult tryLibraryOfCongress(String isbn) {
+    MetadataResult tryLibraryOfCongress(String isbn) {
         try {
             String xml = http.get(LOC_LINK + isbn + LOC_LINK_SUFFIX);
             return parseLocMods(xml, isbn);
