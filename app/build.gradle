@@ -63,7 +63,7 @@ android {
             includeAndroidResources = true
 
             // LiveLookupSmokeTest hits the real metadata APIs, so it only runs when asked for:
-            // gradlew testDebugUnitTest -PliveLookup --tests '*LiveLookupSmokeTest'
+            // gradlew testDebugUnitTest -PliveLookup --tests "*LiveLookupSmokeTest"
             all {
                 systemProperty 'liveLookup', project.hasProperty('liveLookup') ? 'true' : 'false'
                 if (project.hasProperty('liveLookup')) {

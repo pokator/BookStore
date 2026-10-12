@@ -178,6 +178,17 @@ public class BookMetadataLookupChainTest {
     }
 
     @Test
+    public void aTypedIsbn_isNormalizedBeforeItIsLookedUp() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond("ISBN:014023750X", "{\"ISBN:014023750X\": {\"title\": \"The Catcher in the Rye\"}}");
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, "0-14-023750-x");
+
+        assertEquals("The Catcher in the Rye", result.metadata.title);
+        assertEquals("014023750X", result.resolvedIsbn);
+    }
+
+    @Test
     public void everySourceFailing_isAnErrorResult() {
         FakeHttpFetcher http = new FakeHttpFetcher();
 

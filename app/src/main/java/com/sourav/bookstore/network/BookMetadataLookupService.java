@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -109,7 +110,15 @@ public class BookMetadataLookupService {
     }
 
     public MetadataResult resolveMetadata(String isbn) {
-        return lookup(isbn);
+        return lookup(normalizeIsbn(isbn));
+    }
+
+    /**
+     * Strips the spaces/hyphens people type and upper-cases an ISBN-10's check digit: Open
+     * Library treats {@code 014023750x} as a different (unknown) key from {@code 014023750X}.
+     */
+    static String normalizeIsbn(String isbn) {
+        return isbn.replaceAll("[\\s-]", "").toUpperCase(Locale.ROOT);
     }
 
     private MetadataResult lookup(String isbn) {
@@ -174,8 +183,8 @@ public class BookMetadataLookupService {
             if (book == null) {
                 return null;
             }
-            String title = book.optString("title", "");
-            if (title.isEmpty()) {
+            String title = stringOrNull(book, "title");
+            if (title == null || title.isEmpty()) {
                 return null;
             }
 
@@ -183,8 +192,10 @@ public class BookMetadataLookupService {
             JSONArray authors = book.optJSONArray("authors");
             if (authors != null) {
                 for (int a = 0; a < authors.length(); a++) {
-                    String name = authors.getJSONObject(a).optString("name", "");
-                    if (name.isEmpty()) {
+                    // Skip a malformed entry rather than losing the whole record over it.
+                    JSONObject authorObject = authors.optJSONObject(a);
+                    String name = authorObject != null ? stringOrNull(authorObject, "name") : null;
+                    if (name == null || name.isEmpty()) {
                         continue;
                     }
                     if (author.length() > 0) author.append(", ");
@@ -193,13 +204,21 @@ public class BookMetadataLookupService {
             }
 
             JSONObject cover = book.optJSONObject("cover");
-            String thumbnailUrl = cover != null ? cover.optString("medium", null) : null;
+            String thumbnailUrl = cover != null ? stringOrNull(cover, "medium") : null;
 
             return MetadataResult.found(Source.OPEN_LIBRARY, new BookMetadata(title, author.toString(), thumbnailUrl), isbn);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * {@code object.optString(key, null)} would return the string "null" for a JSON null on
+     * Android (its org.json differs from json.org's here), so check for that explicitly.
+     */
+    private static String stringOrNull(JSONObject object, String key) {
+        return object.isNull(key) ? null : object.optString(key, null);
     }
 
     MetadataResult tryGoogleBooks(String isbn) {
@@ -362,7 +381,9 @@ public class BookMetadataLookupService {
                 // (<nonSort>The  </nonSort><title>great Gatsby</title>); put it back.
                 Element nonSort = firstDirectChildElement(titleInfo, "nonSort");
                 if (nonSort != null && !nonSort.getTextContent().trim().isEmpty()) {
-                    title = nonSort.getTextContent().trim() + " " + title;
+                    String article = nonSort.getTextContent();
+                    String separator = Character.isWhitespace(article.charAt(article.length() - 1)) ? " " : "";
+                    title = (article.trim() + separator + title).trim();
                 }
             }
 

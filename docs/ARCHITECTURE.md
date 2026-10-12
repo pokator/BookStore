@@ -152,8 +152,9 @@ Given an ISBN, `resolveMetadata` resolves book metadata in this order:
 request with a Cloudflare bot challenge, so it was removed.)
 
 All network I/O runs synchronously inside `doInBackground`-triggered calls (via
-`BookLookupTask`), with blocking reads and no timeout, through a single `HttpFetcher.get(url)`
-(`UrlHttpFetcher` in production). Tests substitute `FakeHttpFetcher`, which serves responses
+`BookLookupTask`), with blocking reads (10s connect / 15s read timeouts), through a single
+`HttpFetcher.get(url)` (`UrlHttpFetcher` in production, which treats any non-2xx status as a
+failure). Tests substitute `FakeHttpFetcher`, which serves responses
 captured from the real APIs and records every URL requested. Each source is
 fetch-and-parse-in-one (a `tryXxx`/`parseXxx` method pair returning `MetadataResult` or `null`)
 rather than a shared content-sniffing parser.
@@ -187,8 +188,6 @@ returns the `Barcode` object to the caller via `setResult`/`Intent` extra and fi
 - **String-concatenated SQL** in most of `DBManager` (`insert`/`update`/`delete`/`existenceCheck`)
   instead of parameterized queries — `search` is the one exception (added parameterized from the
   start).
-- **No request timeouts** on the metadata lookups: `URL#openStream()` blocks for as long as
-  the server holds the connection, so a hung source stalls the whole lookup.
 - **No structured data model**: books are passed between screens as loose `String` `Intent`
   extras rather than a `Book` model/Parcelable.
 - **Camera barcode detection has no automated tests** — everything from the detected barcode

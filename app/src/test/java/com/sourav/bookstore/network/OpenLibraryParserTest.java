@@ -54,6 +54,28 @@ public class OpenLibraryParserTest {
     }
 
     @Test
+    public void aJsonNullTitle_isAMiss_notTheTitleNull() {
+        assertNull(service.parseOpenLibraryJson("{\"ISBN:1\": {\"title\": null}}", "1"));
+    }
+
+    @Test
+    public void aJsonNullCover_meansNoThumbnail_notTheUrlNull() {
+        BookMetadataLookupService.MetadataResult result = service.parseOpenLibraryJson(
+                "{\"ISBN:1\": {\"title\": \"Dune\", \"cover\": {\"medium\": null}}}", "1");
+
+        assertNull(result.metadata.thumbnailUrl);
+    }
+
+    @Test
+    public void aMalformedAuthorEntry_isSkipped_keepingTheRest() {
+        BookMetadataLookupService.MetadataResult result = service.parseOpenLibraryJson(
+                "{\"ISBN:1\": {\"title\": \"Dune\", \"authors\": [\"oops\", {\"name\": null}, {\"name\": \"Frank Herbert\"}]}}", "1");
+
+        assertEquals("Dune", result.metadata.title);
+        assertEquals("Frank Herbert", result.metadata.author);
+    }
+
+    @Test
     public void malformedJson_isAMiss() {
         assertNull(service.parseOpenLibraryJson("<html>rate limited</html>", "9780316769488"));
     }

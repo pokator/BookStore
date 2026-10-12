@@ -14,7 +14,7 @@ import static org.junit.Assume.assumeTrue;
 
 /**
  * Hits the real metadata APIs, with the real keys from local.properties, so it is opt-in:
- * <pre>gradlew testDebugUnitTest -PliveLookup --tests '*LiveLookupSmokeTest'</pre>
+ * <pre>gradlew testDebugUnitTest -PliveLookup --tests "*LiveLookupSmokeTest"</pre>
  * Without -PliveLookup every test here is skipped (the API quotas and outages would otherwise
  * make the default suite flaky). One test per source, so a failure names the API that broke,
  * plus end-to-end checks that well-known books resolve to the right title.

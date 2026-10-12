@@ -39,6 +39,7 @@ import org.robolectric.shadows.ShadowDialog;
 import org.robolectric.shadows.ShadowPausedAsyncTask;
 import org.robolectric.shadows.ShadowToast;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,6 +67,7 @@ public class ScanToResultFlowTest {
     private DBManager dbManager;
     private FakeHttpFetcher http;
     private final List<String> thumbnailRequests = new ArrayList<>();
+    private boolean coverFetchFails;
     private final Bitmap cover = Bitmap.createBitmap(4, 6, Bitmap.Config.ARGB_8888);
 
     @Before
@@ -91,8 +93,11 @@ public class ScanToResultFlowTest {
         fragment.lookupService = new BookMetadataLookupService(http);
         fragment.thumbnailFetcher = new ThumbnailFetcher() {
             @Override
-            public Bitmap fetch(String url) {
+            public Bitmap fetch(String url) throws IOException {
                 thumbnailRequests.add(url);
+                if (coverFetchFails) {
+                    throw new IOException("simulated cover download failure");
+                }
                 return cover;
             }
         };
@@ -193,14 +198,32 @@ public class ScanToResultFlowTest {
     }
 
     @Test
-    public void aResultWithNoCover_clearsTheThumbnail_andFetchesNothing() {
-        http.respond("openlibrary.org/api/books", Fixtures.read("openlibrary_nocover.json"));
+    public void aResultWithNoCover_clearsThePreviousBooksCover_andFetchesNothing() {
+        http.respond("ISBN:" + CATCHER, Fixtures.read("openlibrary_catcher.json"))
+                .respond("ISBN:9781529100778", Fixtures.read("openlibrary_nocover.json"));
         HomeFragment fragment = attachFragment();
+        scan(fragment, Barcode.EAN_13, CATCHER);
+        assertSame(cover, shownCover(fragment));
 
         scan(fragment, Barcode.EAN_13, "9781529100778");
 
         assertEquals("Juniper and Thorn", text(fragment, R.id.book_title));
-        assertTrue(thumbnailRequests.isEmpty());
+        assertEquals(1, thumbnailRequests.size());
+        assertNull(shownCover(fragment));
+    }
+
+    @Test
+    public void aFailedCoverDownload_showsNoCover_notThePreviousBooks() {
+        http.respond("q=isbn:" + GATSBY, Fixtures.read("google_hit.json"))
+                .respond("ISBN:" + CATCHER, Fixtures.read("openlibrary_catcher.json"));
+        HomeFragment fragment = attachFragment();
+        scan(fragment, Barcode.EAN_13, GATSBY);
+        assertSame(cover, shownCover(fragment));
+
+        coverFetchFails = true;
+        scan(fragment, Barcode.EAN_13, CATCHER);
+
+        assertEquals("The Catcher in the Rye", text(fragment, R.id.book_title));
         assertNull(shownCover(fragment));
     }
 
@@ -256,15 +279,24 @@ public class ScanToResultFlowTest {
     }
 
     @Test
-    public void aNewScan_clearsThePreviousResultFirst() {
-        http.respond("q=isbn:" + GATSBY, Fixtures.read("google_hit.json"));
+    public void aNewScan_replacesThePreviousResult_includingTheIsbnAddStores() {
+        // The first book resolves via a related edition (a different ISBN from the one scanned);
+        // Add after the second scan must store the second book's own ISBN, not that one.
+        http.respond("q=isbn:", Fixtures.read("google_miss.json"))
+                .respond("/thingISBN/" + CATCHER, Fixtures.read("librarything_catcher.xml"))
+                .respond("bath.isbn=0316769177", Fixtures.read("loc_gatsby.xml"))
+                .respond("bath.isbn=" + GATSBY, Fixtures.read("loc_gatsby.xml"));
         HomeFragment fragment = attachFragment();
-        scan(fragment, Barcode.EAN_13, GATSBY);
-
         scan(fragment, Barcode.EAN_13, CATCHER);
 
-        assertEquals(context.getString(R.string.status_lookup_error), text(fragment, R.id.book_title));
-        assertEquals(View.INVISIBLE, visibility(fragment, R.id.add_button));
+        scan(fragment, Barcode.EAN_13, GATSBY);
+        fragment.requireView().findViewById(R.id.add_button).performClick();
+
+        assertEquals(context.getString(R.string.status_isbn, GATSBY), text(fragment, R.id.barcode_result));
+        List<String> isbns = new ArrayList<>();
+        storedIsbns(isbns);
+        assertEquals(1, isbns.size());
+        assertEquals(GATSBY, isbns.get(0));
     }
 
     @Test

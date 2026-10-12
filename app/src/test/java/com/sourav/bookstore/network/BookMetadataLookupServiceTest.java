@@ -82,6 +82,23 @@ public class BookMetadataLookupServiceTest {
     }
 
     @Test
+    public void parseLocMods_joinsAnElidedArticleWithoutASpace() {
+        String xml = "<zs:searchRetrieveResponse xmlns:zs=\"http://www.loc.gov/zing/srw/\">"
+                + "<zs:numberOfRecords>1</zs:numberOfRecords><zs:records><zs:record><zs:recordData>"
+                + "<mods xmlns=\"http://www.loc.gov/mods/v3\"><titleInfo><nonSort>L'</nonSort>"
+                + "<title>\u00e9tranger</title></titleInfo></mods>"
+                + "</zs:recordData></zs:record></zs:records></zs:searchRetrieveResponse>";
+
+        assertEquals("L'\u00e9tranger", service.parseLocMods(xml, "2070360024").metadata.title);
+    }
+
+    @Test
+    public void normalizeIsbn_stripsSeparators_andUpperCasesTheCheckDigit() {
+        assertEquals("014023750X", BookMetadataLookupService.normalizeIsbn(" 0-14-023750-x "));
+        assertEquals("9780743273565", BookMetadataLookupService.normalizeIsbn("978-0-7432-7356-5"));
+    }
+
+    @Test
     public void parseLocMods_returnsNull_whenNumberOfRecordsIsZero() {
         BookMetadataLookupService.MetadataResult result = service.parseLocMods(LOC_MISS_RESPONSE, "0752858769");
 

@@ -235,6 +235,9 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
         // make an unrelated book report as already owned).
         isbn = null;
         searchString = null;
+        // Also the cached cover: onThumbnailFetchResult re-shows it when a fetch fails, which
+        // would otherwise put the previous book's cover next to this one.
+        thumbImg = null;
     }
 
     /**
@@ -391,6 +394,7 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
         if (thumbnailUrl != null) {
             new ThumbnailTask(this, thumbnailFetcher).execute(thumbnailUrl);
         } else {
+            thumbImg = null;
             thumb.setImageBitmap(null);
         }
 
@@ -407,6 +411,7 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
     public void onLookupError() {
         titleText.setText(R.string.status_lookup_error);
         authorText.setText("");
+        thumbImg = null;
         thumb.setImageBitmap(null);
         ownershipBanner.setVisibility(View.GONE);
         addButton.setVisibility(View.INVISIBLE);
