@@ -367,6 +367,12 @@ public class BookMetadataLookupService {
                 if (titleElement != null) {
                     title = titleElement.getTextContent();
                 }
+                // MODS files a leading article separately so catalogs can sort past it
+                // (<nonSort>The  </nonSort><title>great Gatsby</title>); put it back.
+                Element nonSort = firstDirectChildElement(titleInfo, "nonSort");
+                if (nonSort != null && !nonSort.getTextContent().trim().isEmpty()) {
+                    title = nonSort.getTextContent().trim() + " " + title;
+                }
             }
 
             String author = "";

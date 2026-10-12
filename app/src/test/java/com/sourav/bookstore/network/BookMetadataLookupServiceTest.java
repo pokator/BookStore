@@ -73,6 +73,15 @@ public class BookMetadataLookupServiceTest {
     }
 
     @Test
+    public void parseLocMods_keepsTheLeadingArticleLocFilesUnderNonSort() {
+        BookMetadataLookupService.MetadataResult result =
+                service.parseLocMods(Fixtures.read("loc_gatsby.xml"), "9780743273565");
+
+        assertEquals("The great Gatsby", result.metadata.title);
+        assertEquals("Fitzgerald, F. Scott (Francis Scott),", result.metadata.author);
+    }
+
+    @Test
     public void parseLocMods_returnsNull_whenNumberOfRecordsIsZero() {
         BookMetadataLookupService.MetadataResult result = service.parseLocMods(LOC_MISS_RESPONSE, "0752858769");
 
