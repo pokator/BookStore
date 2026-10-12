@@ -1,9 +1,6 @@
 package com.sourav.bookstore.ui.home;
 
 import android.os.AsyncTask;
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
 
 import com.sourav.bookstore.network.BookMetadataLookupService;
 
@@ -33,16 +30,17 @@ public class BookLookupTask extends AsyncTask<String, Void, BookMetadataLookupSe
     }
 
     private final Callback callback;
+    private final BookMetadataLookupService lookupService;
 
-    public BookLookupTask(Callback callback) {
+    public BookLookupTask(Callback callback, BookMetadataLookupService lookupService) {
         this.callback = callback;
+        this.lookupService = lookupService;
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     protected BookMetadataLookupService.MetadataResult doInBackground(String... isbns) {
         for (String originalIsbn : isbns) {
-            return new BookMetadataLookupService().resolveMetadata(originalIsbn);
+            return lookupService.resolveMetadata(originalIsbn);
         }
         return null;
     }

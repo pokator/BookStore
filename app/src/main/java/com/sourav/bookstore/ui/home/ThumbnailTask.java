@@ -33,15 +33,17 @@ public class ThumbnailTask extends AsyncTask<String, Void, ThumbnailTask.Result>
     }
 
     private final Callback callback;
+    private final ThumbnailFetcher fetcher;
 
-    public ThumbnailTask(Callback callback) {
+    public ThumbnailTask(Callback callback, ThumbnailFetcher fetcher) {
         this.callback = callback;
+        this.fetcher = fetcher;
     }
 
     @Override
     protected Result doInBackground(String... thumbURLs) {
         try {
-            return new Result(true, new ThumbnailFetcher().fetch(thumbURLs[0]));
+            return new Result(true, fetcher.fetch(thumbURLs[0]));
         } catch (Exception e) {
             e.printStackTrace();
             return new Result(false, null);

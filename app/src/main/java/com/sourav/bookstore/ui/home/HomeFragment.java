@@ -27,6 +27,7 @@ import com.sourav.bookstore.data.DBManager;
 import com.sourav.bookstore.data.DuplicateEntryException;
 import com.sourav.bookstore.data.OwnershipMatcher;
 import com.sourav.bookstore.network.BookMetadataLookupService;
+import com.sourav.bookstore.network.ThumbnailFetcher;
 import com.sourav.bookstore.ui.main.PageViewModel;
 import com.sourav.bookstore.ui.scan.ScanBarcodeActivity;
 
@@ -77,6 +78,10 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
     private PageViewModel pageViewModel;
 
     private DBManager dbManager;
+
+    // Swapped out by tests for ones backed by canned responses; the real network otherwise.
+    BookMetadataLookupService lookupService = new BookMetadataLookupService();
+    ThumbnailFetcher thumbnailFetcher = new ThumbnailFetcher();
 
     public static HomeFragment newInstance(int index) {
         HomeFragment fragment = new HomeFragment();
@@ -204,7 +209,7 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
 
                 if (barcode.displayValue != null && barcode.format == Barcode.EAN_13) {
                     searchString = barcode.displayValue;
-                    new BookLookupTask(this).execute(searchString);
+                    new BookLookupTask(this, lookupService).execute(searchString);
                     barcodeResult.setText(getString(R.string.status_isbn, barcode.displayValue));
                 } else {
                     Toast.makeText(getActivity().getApplicationContext(),
@@ -335,7 +340,7 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
                         String task = String.valueOf(taskEditText.getText());
                         if (!task.isEmpty()) {
                             searchString = task;
-                            new BookLookupTask(HomeFragment.this).execute(searchString);
+                            new BookLookupTask(HomeFragment.this, lookupService).execute(searchString);
                             barcodeResult.setText(getString(R.string.status_isbn, task));
                         } else {
                             barcodeResult.setText(R.string.status_isbn_invalid);
@@ -384,7 +389,7 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
 
         if (source == BookMetadataLookupService.Source.GOOGLE_BOOKS) {
             if (thumbnailUrl != null) {
-                new ThumbnailTask(this).execute(thumbnailUrl);
+                new ThumbnailTask(this, thumbnailFetcher).execute(thumbnailUrl);
             } else {
                 thumb.setImageBitmap(null);
             }
