@@ -22,13 +22,16 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 /**
- * Given an ISBN, resolves book metadata in this order: Open Library directly (keyless, and the
- * only source that still answers ISBN queries reliably since Google Books' {@code isbn:} search
- * started returning zero results in late September 2026); then Google Books directly; if that has no
- * match, LibraryThing's thingISBN API is asked for the ISBNs of other editions of the same work
- * (a simple {@code <idlist><isbn>...</isbn>...</idlist>} XML document), and each of those is
- * tried against Google Books, then the Library of Congress's SRU/MODS catalog, until one hits;
- * Biblio.com's page title is the last resort. {@link #resolveMetadata(String)} is the single
+ * Given an ISBN, resolves book metadata in this order: the scanned ISBN itself against Open
+ * Library (keyless, and the only source that still answers ISBN queries reliably since Google
+ * Books' {@code isbn:} search started returning zero results in late September 2026), then
+ * Google Books, then the Library of Congress's SRU/MODS catalog. Only if all three miss is
+ * LibraryThing's thingISBN API asked for the ISBNs of other editions of the same work (a simple
+ * {@code <idlist><isbn>...</isbn>...</idlist>} XML document), each of which is tried against
+ * Open Library, then LOC, until one hits. Related editions are a last resort on purpose:
+ * LibraryThing's lists occasionally include an unrelated book (Catcher in the Rye's lists a
+ * psychology text), and any hit on one is trusted as-is. Biblio.com's page title is the final
+ * fallback. {@link #resolveMetadata(String)} is the single
  * entry point. Each source is responsible for fetching *and* interpreting its own response --
  * callers only ever see structured {@link BookMetadata}, never raw JSON/XML/HTML.
  */
@@ -44,7 +47,7 @@ public class BookMetadataLookupService {
 
     /**
      * A popular work can have hundreds of related editions in LibraryThing's idlist; bound how
-     * many we're willing to try against Google Books/LOC so a lookup can't turn into hundreds of
+     * many we're willing to try against Open Library/LOC so a lookup can't turn into hundreds of
      * sequential network round-trips.
      */
     static final int MAX_RELATED_ISBNS_TO_TRY = 30;
@@ -119,9 +122,14 @@ public class BookMetadataLookupService {
             return openLibrary;
         }
 
-        MetadataResult direct = tryGoogleBooks(isbn);
-        if (direct != null) {
-            return direct;
+        MetadataResult google = tryGoogleBooks(isbn);
+        if (google != null) {
+            return google;
+        }
+
+        MetadataResult loc = tryLibraryOfCongress(isbn);
+        if (loc != null) {
+            return loc;
         }
 
         List<String> relatedIsbns = fetchRelatedIsbns(isbn);
@@ -129,9 +137,9 @@ public class BookMetadataLookupService {
         for (int i = 0; i < attempts; i++) {
             String candidate = relatedIsbns.get(i);
 
-            MetadataResult googleResult = tryGoogleBooks(candidate);
-            if (googleResult != null) {
-                return googleResult;
+            MetadataResult openLibraryResult = tryOpenLibrary(candidate);
+            if (openLibraryResult != null) {
+                return openLibraryResult;
             }
 
             MetadataResult locResult = tryLibraryOfCongress(candidate);

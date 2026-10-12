@@ -77,12 +77,45 @@ public class BookMetadataLookupChainTest {
 
         assertEquals(BookMetadataLookupService.Source.LIBRARY_OF_CONGRESS, result.source);
         assertEquals(CATCHER_RELATED_1, result.resolvedIsbn);
-        assertEquals(5, http.requests.size());
-        assertTrue(http.requests.get(0).contains(OPEN_LIBRARY));
+        assertEquals(6, http.requests.size());
+        assertTrue(http.requests.get(0).contains(OPEN_LIBRARY) && http.requests.get(0).endsWith(CATCHER));
         assertTrue(http.requests.get(1).contains(GOOGLE + CATCHER));
-        assertTrue(http.requests.get(2).contains(LIBRARY_THING + CATCHER));
-        assertTrue(http.requests.get(3).contains(GOOGLE + CATCHER_RELATED_1));
-        assertTrue(http.requests.get(4).contains(LOC + CATCHER_RELATED_1));
+        assertTrue(http.requests.get(2).contains(LOC + CATCHER));
+        assertTrue(http.requests.get(3).contains(LIBRARY_THING + CATCHER));
+        assertTrue(http.requests.get(4).contains(OPEN_LIBRARY) && http.requests.get(4).endsWith(CATCHER_RELATED_1));
+        assertTrue(http.requests.get(5).contains(LOC + CATCHER_RELATED_1));
+    }
+
+    @Test
+    public void locHitForTheScannedIsbn_isUsedBeforeAnyRelatedEditionIsConsulted() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .respond(LOC + GATSBY, Fixtures.read("loc_gatsby.xml"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
+
+        assertEquals(BookMetadataLookupService.Source.LIBRARY_OF_CONGRESS, result.source);
+        assertEquals(GATSBY, result.resolvedIsbn);
+        assertEquals(0, http.countRequests(LIBRARY_THING));
+    }
+
+    @Test
+    public void aRelatedEdition_isTriedOnOpenLibraryFirst() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond("ISBN:" + CATCHER_RELATED_1, "{\"ISBN:" + CATCHER_RELATED_1 + "\": {\"title\": \"The Catcher in the Rye\"}}")
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .respond(LIBRARY_THING + CATCHER, Fixtures.read("librarything_catcher.xml"))
+                .respond(LOC, Fixtures.read("loc_miss.xml"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
+
+        assertEquals(BookMetadataLookupService.Source.OPEN_LIBRARY, result.source);
+        assertEquals(CATCHER_RELATED_1, result.resolvedIsbn);
+        // Google is only asked about the scanned ISBN, never about related editions.
+        assertEquals(1, http.countRequests(GOOGLE));
+        assertEquals(1, http.countRequests(LOC));
     }
 
     @Test
@@ -127,8 +160,9 @@ public class BookMetadataLookupChainTest {
         BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
 
         assertTrue(result.isError());
-        assertEquals(1 + BookMetadataLookupService.MAX_RELATED_ISBNS_TO_TRY, http.countRequests(GOOGLE));
-        assertEquals(BookMetadataLookupService.MAX_RELATED_ISBNS_TO_TRY, http.countRequests(LOC));
+        assertEquals(1, http.countRequests(GOOGLE));
+        assertEquals(1 + BookMetadataLookupService.MAX_RELATED_ISBNS_TO_TRY, http.countRequests(OPEN_LIBRARY));
+        assertEquals(1 + BookMetadataLookupService.MAX_RELATED_ISBNS_TO_TRY, http.countRequests(LOC));
     }
 
     @Test
