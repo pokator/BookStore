@@ -116,36 +116,47 @@ Three classes split this three ways:
 
 Given an ISBN, `resolveMetadata` resolves book metadata in this order:
 
-1. **Google Books API** — `GET https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}&key={key}`.
-   If this returns items, the JSON is parsed for `title`, `authors`, and a thumbnail URL.
-2. **LibraryThing `thingISBN`** — `GET https://www.librarything.com/api/{key}/thingISBN/{isbn}`
+1. **Open Library Books API** — `GET https://openlibrary.org/api/books?format=json&jscmd=data&bibkeys=ISBN:{isbn}`
+   (keyless). A miss is `{}`; a hit is parsed for `title`, every author's `name`, and
+   `cover.medium` (`parseOpenLibraryJson`). This is first because, since late September 2026,
+   Google Books returns `totalItems: 0` for every field-qualified query (`isbn:`, `intitle:`...)
+   — plain-text queries still work, but a bare ISBN as plain text matches unrelated books.
+2. **Google Books API** — `GET https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}&key={key}`.
+   If this returns items, the JSON is parsed for `title`, `authors`, and a thumbnail URL. Kept so
+   lookups recover on their own if Google fixes `isbn:` search.
+3. **Library of Congress SRU/MODS catalog** for the scanned ISBN (details under step 5).
+4. **LibraryThing `thingISBN`** — only if steps 1–3 all missed. — `GET https://www.librarything.com/api/{key}/thingISBN/{isbn}`
    (**must be `https://`** — LibraryThing 301-redirects plain `http://` requests via Cloudflare,
    and `URL#openStream()` does not follow cross-protocol redirects, so an `http://` link here
    silently gets the redirect page instead of API data). Returns an
    `<idlist><isbn>...</isbn>...</idlist>` XML document listing ISBNs of other editions/
    translations of the same work, parsed with `DocumentBuilder` (`parseIsbnList`). Each of up to
-   `MAX_RELATED_ISBNS_TO_TRY` (30) of those ISBNs is tried against **Google Books, then the
-   Library of Congress** (next) if that misses, before moving to the next candidate.
-3. **Library of Congress SRU/MODS catalog** — `GET http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=bath.isbn={isbn}&maximumRecords=1&recordSchema=mods`
+   `MAX_RELATED_ISBNS_TO_TRY` (30) of those ISBNs is tried against **Open Library, then the
+   Library of Congress**, before moving to the next candidate. This is deliberately last:
+   LibraryThing's lists occasionally include an unrelated book (Catcher in the Rye's includes a
+   psychology text), and a hit on any listed ISBN is trusted as-is.
+5. **Library of Congress SRU/MODS catalog** — `GET http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=bath.isbn={isbn}&maximumRecords=1&recordSchema=mods`
    (plain `http://`, confirmed not to redirect — unlike LibraryThing, don't "fix" this to
    `https://`). A miss is `<zs:numberOfRecords>0</zs:numberOfRecords>` with no `<zs:records>` at
-   all. On a hit, title/author are read from the `<mods>` record's **direct children only**
+   all; when LOC's backend is down it instead answers with an SRU diagnostic ("System
+   temporarily unavailable") and no `<zs:numberOfRecords>`, which is also treated as a miss. On
+   a hit, title/author are read from the `<mods>` record's **direct children only**
    (`parseLocMods`) — not via `getElementsByTagName`, which would also match `<name>`/`<title>`
    elements nested inside `<subject>`/`<relatedItem>` (e.g. a related work's author, or a
    fictional character used as a subject heading) that are not this book's actual author/title.
-   This path never resolves a thumbnail — the MODS schema doesn't carry a cover-image URL.
-4. **Biblio.com** — as the final last resort (only reached if the direct attempt and every
-   candidate from steps 2–3 missed), `https://www.biblio.com/{isbn}` is fetched and its HTML
-   `<title>` is parsed (`substringBetween`/`split` on `" - "`/`"by "`) to recover a title and
-   author string. This path never resolves a thumbnail either.
+   MODS files a leading article separately (`<nonSort>The </nonSort><title>great
+   Gatsby</title>`); `parseLocMods` rejoins them. This path never resolves a thumbnail — the
+   MODS schema doesn't carry a cover-image URL.
 
-Step 4 remains the most fragile part of the app — it relies on HTML shape rather than structured
-parsing, and has no timeout. See [Known technical debt](#known-technical-debt) below. All
-network I/O runs synchronously inside `doInBackground`-triggered calls (via `BookLookupTask`),
-with `HttpURLConnection`-style blocking reads. Each source is fetch-and-parse-in-one (a
-`tryXxx`/`parseXxx` method pair returning `MetadataResult` or `null`) rather than a shared
-content-sniffing parser — that's deliberate: a MODS XML response happens to contain a real
-`<title>...</title>` substring, which would otherwise be misread by the HTML-fallback scraper.
+(A Biblio.com HTML-title scrape used to follow as a last resort; Biblio.com now answers every
+request with a Cloudflare bot challenge, so it was removed.)
+
+All network I/O runs synchronously inside `doInBackground`-triggered calls (via
+`BookLookupTask`), with blocking reads and no timeout, through a single `HttpFetcher.get(url)`
+(`UrlHttpFetcher` in production). Tests substitute `FakeHttpFetcher`, which serves responses
+captured from the real APIs and records every URL requested. Each source is
+fetch-and-parse-in-one (a `tryXxx`/`parseXxx` method pair returning `MetadataResult` or `null`)
+rather than a shared content-sniffing parser.
 
 Both API keys (Google Books, LibraryThing) are read from `local.properties` (gitignored) into
 `BuildConfig.GOOGLE_BOOKS_API_KEY`/`LIBRARY_THING_API_KEY` at build time — see
@@ -153,7 +164,7 @@ Both API keys (Google Books, LibraryThing) are read from `local.properties` (git
 
 `MetadataResult.resolvedIsbn` is set independently of whether metadata parsing succeeded — it
 reflects whichever ISBN the fetch chain actually landed on (which can differ from the ISBN the
-user entered/scanned, since steps 2–3 re-resolve it), and is what ends up persisted with the
+user entered/scanned, since step 4 re-resolves it), and is what ends up persisted with the
 book. `ThumbnailTask.Result.fetchSucceeded` similarly distinguishes "fetch completed with a null
 bitmap" from "fetch threw" — `HomeFragment` only overwrites its cached thumbnail on the former,
 leaving the previous thumbnail on screen on the latter. Both classes' Javadoc explain why these
@@ -176,15 +187,14 @@ returns the `Barcode` object to the caller via `setResult`/`Intent` extra and fi
 - **String-concatenated SQL** in most of `DBManager` (`insert`/`update`/`delete`/`existenceCheck`)
   instead of parameterized queries — `search` is the one exception (added parameterized from the
   start).
-- **Fragile HTML scraping** in the Biblio.com last-resort fallback (relies on HTML `<title>`
-  shape, no structured parsing, no request timeout). The LibraryThing step parses real XML now
-  (see above) — it's no longer part of this.
+- **No request timeouts** on the metadata lookups: `URL#openStream()` blocks for as long as
+  the server holds the connection, so a hung source stalls the whole lookup.
 - **No structured data model**: books are passed between screens as loose `String` `Intent`
   extras rather than a `Book` model/Parcelable.
-- **Test coverage is limited to the database layer and the Activities/Fragments that read/write
-  it** (`data.DBManagerTest` plus one Robolectric test per screen package under
-  `ui/`, via Robolectric — see [Testing](README.md#testing) in the README); the network lookup
-  fallback chain and barcode scanning still have no automated tests.
+- **Camera barcode detection has no automated tests** — everything from the detected barcode
+  onwards (lookup chain, screen, storage) does, against captured API responses (see
+  [Testing](../README.md#testing) in the README); the real APIs are only checked by the opt-in
+  `LiveLookupSmokeTest`.
 - **Duplicate/redundant Gradle dependencies** in `app/build.gradle` (e.g. `material`,
   `appcompat`, `legacy-support-v4`, and both `androidx.lifecycle:lifecycle-extensions` and the
   older `android.arch.lifecycle:*` artifacts are each declared more than once).

@@ -10,10 +10,10 @@ metadata online and stores it locally in SQLite.
   read an EAN-13 barcode and extract the ISBN.
 - **Manual ISBN entry** — type an ISBN directly instead of scanning.
 - **Manual text entry** — type a title/author pair directly, bypassing lookup.
-- **Automatic metadata lookup** — given an ISBN, the app queries the Google Books API for
-  title, author(s), and a cover thumbnail; if that misses, it asks LibraryThing's `thingISBN`
-  API for ISBNs of other editions of the same work and retries each against Google Books, then
-  the Library of Congress's SRU/MODS catalog; a Biblio.com page scrape is the last resort.
+- **Automatic metadata lookup** — given an ISBN, the app asks Open Library for title,
+  author(s), and a cover, then Google Books, then the Library of Congress's SRU/MODS catalog; if
+  all three miss, it asks LibraryThing's `thingISBN` API for ISBNs of other editions of the same
+  work and retries each against Open Library, then the Library of Congress.
 - **"Do I already own this?"** — as soon as a scanned or entered book loads, the preview card
   says whether it's already in your library. Matching is fuzzy, so a different edition, a
   dropped subtitle or an author written back-to-front still counts: an ISBN hit reads "Already
@@ -32,7 +32,6 @@ metadata online and stores it locally in SQLite.
 - AndroidX (AppCompat, Material Components, ConstraintLayout, Navigation, Lifecycle/ViewModel)
 - Google Play Services Vision (barcode scanning)
 - Raw `SQLiteOpenHelper` for persistence (no Room)
-- `org.apache.commons:commons-text` for string parsing in the metadata-lookup fallback path
 - Robolectric for JVM-level unit tests of the database layer (see [Testing](#testing))
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how these pieces fit together, and
@@ -52,7 +51,9 @@ app/src/main/java/com/sourav/bookstore/
 │   ├── DBManager.java                 # CRUD wrapper around the SQLite database
 │   └── DuplicateEntryException.java   # Thrown when inserting an existing (title, author) pair
 ├── network/
-│   ├── BookMetadataLookupService.java # Google Books / LibraryThing / Biblio.com fallback chain
+│   ├── BookMetadataLookupService.java # Open Library / Google Books / LOC / LibraryThing fallback chain
+│   ├── HttpFetcher.java               # The one HTTP GET every source makes (faked in tests)
+│   ├── UrlHttpFetcher.java            # Production HttpFetcher (URL#openStream)
 │   └── ThumbnailFetcher.java          # Downloads/decodes a book cover thumbnail
 └── ui/
     ├── main/
@@ -131,9 +132,20 @@ layouts — without it, Activity/Fragment tests fail with theme- or resource-res
 though the code itself is correct.
 
 There are no instrumented (`androidTest`) or UI tests yet; `connectedAndroidTest` currently only
-runs the default template's package-name check. The network lookup chain (Google Books /
-LibraryThing / Biblio.com) and camera-based barcode scanning still have no automated coverage —
-see [Testing reality check](CLAUDE.md#testing-reality-check) for why, and test those manually.
+runs the default template's package-name check.
+
+The scan-to-result pipeline is covered offline: `network/BookMetadataLookupChainTest` drives the
+whole fallback chain, and `ui/home/ScanToResultFlowTest` drives the real `HomeFragment` from a
+scanned barcode or typed ISBN to what's shown and stored, both against API responses captured
+into `app/src/test/resources/lookup/`. To check the real APIs themselves (needs network and the
+API keys; skipped otherwise):
+
+```sh
+gradlew.bat testDebugUnitTest -PliveLookup --tests "*LiveLookupSmokeTest"
+```
+
+The camera barcode detector itself (`ScanBarcodeActivity`) still has no automated coverage —
+test scanning manually on a device.
 
 ## Known limitations
 

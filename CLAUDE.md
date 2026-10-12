@@ -7,7 +7,7 @@ known technical debt).
 ## What this is
 
 BookStore: a single-module Android app (Java) that scans/enters ISBNs, looks up book metadata
-online (Google Books, with LibraryThing/Biblio.com fallbacks), and stores the result in a local
+online (Open Library, then Google Books and the Library of Congress, with LibraryThing related-edition fallbacks), and stores the result in a local
 SQLite database. No Room, no DI framework, no network client library — everything is hand-rolled
 `SQLiteOpenHelper`/`HttpURLConnection`.
 
@@ -42,8 +42,9 @@ picture:
   (single `Books` table: `_id`, `Title`, `Author`, `ISBN`) + `DuplicateEntryException` +
   `OwnershipMatcher` (the fuzzy "do I already own this?" rules behind
   `DBManager.findOwnedMatch`).
-- `app/src/main/java/com/sourav/bookstore/network/` — `BookMetadataLookupService` (the Google
-  Books/LibraryThing/Biblio.com fallback chain, returning structured metadata) and
+- `app/src/main/java/com/sourav/bookstore/network/` — `BookMetadataLookupService` (the Open
+  Library/Google Books/LOC/LibraryThing fallback chain, returning structured metadata; all its
+  HTTP goes through an injected `HttpFetcher`) and
   `ThumbnailFetcher`, both called from `ui/home/BookLookupTask.java`/`ThumbnailTask.java`
   (thin `AsyncTask` wrappers that report results back to `HomeFragment` via a callback
   interface — `HomeFragment` itself has no network/parsing code).
@@ -80,12 +81,14 @@ Test sources under `app/src/test/java/com/sourav/bookstore/` mirror this package
   both the matches it must make (subtitles, articles, reordered names, other editions) and the
   near-misses it must not (same author different book, same title different author).
 - **Metadata lookup fallback chain** (`network.BookMetadataLookupService.resolveMetadata`,
-  called from `ui.home.BookLookupTask.doInBackground`): Google Books directly (keyed), then
-  LibraryThing's `thingISBN` API for related-edition ISBNs (real XML parsing via
-  `DocumentBuilder`, capped at `MAX_RELATED_ISBNS_TO_TRY`) — each candidate tried against Google
-  Books, then the Library of Congress SRU/MODS catalog if that misses too — then Biblio.com's
-  HTML `<title>` as the final last resort (still fixed-offset/`substringBetween`-based, still
-  fragile). Each source's `tryXxx`/`parseXxx` method pair does its own fetch-and-parse and
+  called from `ui.home.BookLookupTask.doInBackground`): the scanned ISBN against Open Library
+  (keyless), then Google Books (keyed), then the Library of Congress SRU/MODS catalog; only if
+  all three miss, LibraryThing's `thingISBN` API for related-edition ISBNs (real XML parsing via
+  `DocumentBuilder`, capped at `MAX_RELATED_ISBNS_TO_TRY`), each tried against Open Library then
+  LOC. Keep related editions last: LibraryThing's lists sometimes contain an unrelated book, and
+  any hit on one is trusted. Google Books' `isbn:` search has returned zero results for every
+  query since late September 2026 (an outage on Google's side; it's kept in the chain so lookups
+  recover if it's fixed), and Biblio.com was removed (Cloudflare bot challenge). Each source's `tryXxx`/`parseXxx` method pair does its own fetch-and-parse and
   returns `null` on any miss/failure so the chain moves on; there's no cross-source
   content-sniffing. Treat changes here as high-risk and test manually (see below) rather than
   assuming logic is self-evidently correct from reading it once.
@@ -123,7 +126,7 @@ cached connection handle survives in the JVM unless explicitly closed.
 screen package, built on the same real-SQLite pattern, that build the actual Activity/Fragment
 and its real layout and check the Intent-extra contracts and DB reads/writes end to end (the
 `library` one now also covers the search box's live filtering and the sort popup menu's row
-ordering). `HomeFragmentTest` is the exception to "HomeFragment has no coverage": it drives the
+ordering). `HomeFragmentTest` drives the
 `BookLookupTask.Callback` methods directly (no network) and asserts only the ownership banner's
 state, and its host `FragmentActivity` needs `activity.setTheme(R.style.AppTheme)` before the
 fragment is committed or `fragment_main`'s Material FAB fails to inflate. These need `android.testOptions.unitTests.includeAndroidResources = true` (already set in
@@ -131,14 +134,24 @@ fragment is committed or `fragment_main`'s Material FAB fails to inflate. These 
 theme/resources and Activity/Fragment tests fail with theme- or layout-inflation errors that
 look unrelated to the actual code change.
 
-`app/src/test/java/com/sourav/bookstore/network/BookMetadataLookupServiceTest.java` covers
-`parseIsbnList` (the LibraryThing `<idlist>` XML parsing) and `parseLocMods` (the LOC MODS
-parsing, including a canned response shaped to trip up naive `getElementsByTagName` use — see
-above) against canned XML strings — pure parsing, no network, plain JUnit (no Robolectric
-needed). Everything else that actually hits the network — the Google Books/LibraryThing/LOC/
-Biblio.com calls themselves, barcode scanning, and the FAB/dialog UI flows in `HomeFragment` —
-has no automated coverage. Don't assume `gradlew test`
-passing means a UI/network change works; build and run the app (`installDebug`) and manually
+**The scan-to-result pipeline is covered offline**, against API responses captured from the real
+services into `app/src/test/resources/lookup/` (loaded via `network.Fixtures`) and served by
+`network.FakeHttpFetcher` — which also records every URL requested, and fails any URL it has no
+response for, so a test can never silently hit the real network:
+`BookMetadataLookupServiceTest` (plain JUnit: `parseIsbnList`, `parseLocMods` incl. the
+`getElementsByTagName` trap, the `<nonSort>` article, and LOC's "temporarily unavailable"
+diagnostic), `OpenLibraryParserTest`, `BookMetadataLookupChainTest` (source order, the
+related-edition cap, every failure mode), `ui.home.BookLookupTaskTest` (result -> callbacks), and
+`ui.home.ScanToResultFlowTest` (the real `HomeFragment`: a `Barcode` result or typed ISBN ->
+lookup -> title/author/cover/banner on screen -> what Add stores). The Open Library/Google/
+org.json-parsing tests need Robolectric only because the plain JVM stubs out Android's org.json.
+`HomeFragment` takes its `lookupService`/`thumbnailFetcher` as package-private fields for this;
+`ScanToResultFlowTest` runs AsyncTasks inline via
+`ShadowPausedAsyncTask.overrideExecutor(new InlineExecutorService())` then idles the main looper.
+The real APIs are checked only by the opt-in `network.LiveLookupSmokeTest`
+(`gradlew.bat testDebugUnitTest -PliveLookup --tests "*LiveLookupSmokeTest"`; skipped without
+the flag) — one test per source, so a failure names which API broke. Nothing covers the camera
+`BarcodeDetector` itself. Don't assume `gradlew test` passing means a UI/network change works; build and run the app (`installDebug`) and manually
 exercise the affected flow (scan a barcode / enter an ISBN / add-edit-delete a book) before
 calling that work complete. When adding new testable logic, prefer extending these Robolectric/
 plain-JUnit patterns over reaching for instrumented (`androidTest`) tests, since those require a
@@ -147,4 +160,5 @@ connected device/emulator this environment doesn't have.
 Note for live-network verification in this environment specifically: the Google Books API's
 unauthenticated endpoint is frequently rate-limited (HTTP 429) from this host's outbound IP —
 don't take a 429 here as evidence of a code defect; it reproduces on the sandboxed JVM but not
-necessarily on a real device/network.
+necessarily on a real device/network. LOC's `lx2.loc.gov` also intermittently answers "System
+temporarily unavailable" for minutes at a time; re-run before blaming the code.
