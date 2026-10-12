@@ -1,0 +1,139 @@
+package com.sourav.bookstore.network;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+/**
+ * Drives {@link BookMetadataLookupService#resolveMetadata} through its whole fallback chain
+ * against canned responses (see {@link FakeHttpFetcher}/{@link Fixtures}) -- which source is
+ * asked, in what order, and what a failure at each step does to the outcome. Robolectric only
+ * because the Google Books parser uses Android's org.json, which the plain JVM stubs out.
+ */
+@RunWith(RobolectricTestRunner.class)
+public class BookMetadataLookupChainTest {
+
+    static final String GOOGLE = "googleapis.com/books/v1/volumes?q=isbn:";
+    static final String LIBRARY_THING = "/thingISBN/";
+    static final String LOC = "bath.isbn=";
+    static final String BIBLIO = "biblio.com/";
+
+    private static final String GATSBY = "9780743273565";
+    private static final String CATCHER = "9780316769488";
+    // The first two related ISBNs LibraryThing lists for CATCHER (see librarything_catcher.xml).
+    private static final String CATCHER_RELATED_1 = "0316769177";
+    private static final String CATCHER_RELATED_2 = "0316769487";
+
+    private BookMetadataLookupService.MetadataResult resolve(FakeHttpFetcher http, String isbn) {
+        return new BookMetadataLookupService(http).resolveMetadata(isbn);
+    }
+
+    @Test
+    public void googleHit_isReturnedWithoutAskingAnyOtherSource() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(GOOGLE + GATSBY, Fixtures.read("google_hit.json"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
+
+        assertEquals(BookMetadataLookupService.Source.GOOGLE_BOOKS, result.source);
+        assertEquals("F. Scott Fitzgerald: The Great Gatsby", result.metadata.title);
+        assertEquals("F. Scott Fitzgerald", result.metadata.author);
+        assertTrue(result.metadata.thumbnailUrl.startsWith("http://books.google.com/books/content"));
+        assertEquals(GATSBY, result.resolvedIsbn);
+        assertEquals(1, http.requests.size());
+    }
+
+    @Test
+    public void googleMiss_fallsBackToARelatedEditionFromLibraryThing_resolvedViaLoc() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .respond(LIBRARY_THING + CATCHER, Fixtures.read("librarything_catcher.xml"))
+                .respond(LOC + CATCHER_RELATED_1, Fixtures.read("loc_gatsby.xml"))
+                .respond(LOC, Fixtures.read("loc_miss.xml"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
+
+        assertEquals(BookMetadataLookupService.Source.LIBRARY_OF_CONGRESS, result.source);
+        assertEquals(CATCHER_RELATED_1, result.resolvedIsbn);
+        assertEquals(4, http.requests.size());
+        assertTrue(http.requests.get(0).contains(GOOGLE + CATCHER));
+        assertTrue(http.requests.get(1).contains(LIBRARY_THING + CATCHER));
+        assertTrue(http.requests.get(2).contains(GOOGLE + CATCHER_RELATED_1));
+        assertTrue(http.requests.get(3).contains(LOC + CATCHER_RELATED_1));
+    }
+
+    @Test
+    public void googleHttpError_isTreatedAsAMiss_notAFailedLookup() {
+        // e.g. HTTP 429 quota exhaustion: openStream() throws, and the chain must carry on.
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .fail(GOOGLE)
+                .respond(LIBRARY_THING + CATCHER, Fixtures.read("librarything_catcher.xml"))
+                .respond(LOC + CATCHER_RELATED_1, Fixtures.read("loc_gatsby.xml"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
+
+        assertEquals(BookMetadataLookupService.Source.LIBRARY_OF_CONGRESS, result.source);
+    }
+
+    @Test
+    public void locTemporarilyUnavailable_isTreatedAsAMiss_andTheNextRelatedEditionIsTried() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .respond(LIBRARY_THING + CATCHER, Fixtures.read("librarything_catcher.xml"))
+                .respond(LOC + CATCHER_RELATED_1, Fixtures.read("loc_unavailable.xml"))
+                .respond(LOC + CATCHER_RELATED_2, Fixtures.read("loc_gatsby.xml"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
+
+        assertEquals(CATCHER_RELATED_2, result.resolvedIsbn);
+    }
+
+    @Test
+    public void relatedEditionAttempts_areCapped() {
+        StringBuilder idlist = new StringBuilder("<idlist>");
+        for (int i = 0; i < BookMetadataLookupService.MAX_RELATED_ISBNS_TO_TRY + 10; i++) {
+            idlist.append("<isbn>").append(String.format("%010d", i)).append("</isbn>");
+        }
+        idlist.append("</idlist>");
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .respond(LIBRARY_THING, idlist.toString())
+                .respond(LOC, Fixtures.read("loc_miss.xml"))
+                .fail(BIBLIO);
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
+
+        assertTrue(result.isError());
+        assertEquals(1 + BookMetadataLookupService.MAX_RELATED_ISBNS_TO_TRY, http.countRequests(GOOGLE));
+        assertEquals(BookMetadataLookupService.MAX_RELATED_ISBNS_TO_TRY, http.countRequests(LOC));
+    }
+
+    @Test
+    public void libraryThingDown_fallsThroughToBiblio() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .fail(LIBRARY_THING)
+                .respond(BIBLIO + GATSBY,
+                        "<html><head><title>Biblio - The Great Gatsby by F. Scott Fitzgerald</title></head></html>");
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
+
+        assertEquals(BookMetadataLookupService.Source.HTML_FALLBACK, result.source);
+        assertEquals("F. Scott Fitzgerald", result.metadata.author);
+    }
+
+    @Test
+    public void everySourceFailing_isAnErrorResult() {
+        FakeHttpFetcher http = new FakeHttpFetcher();
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
+
+        assertTrue(result.isError());
+        assertNull(result.metadata);
+        assertNull(result.resolvedIsbn);
+    }
+}

@@ -1,9 +1,5 @@
 package com.sourav.bookstore.network;
 
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
-
 import com.sourav.bookstore.BuildConfig;
 
 import org.apache.commons.lang3.StringUtils;
@@ -16,15 +12,11 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.StringReader;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -52,7 +44,17 @@ public class BookMetadataLookupService {
      * many we're willing to try against Google Books/LOC so a lookup can't turn into hundreds of
      * sequential network round-trips.
      */
-    private static final int MAX_RELATED_ISBNS_TO_TRY = 30;
+    static final int MAX_RELATED_ISBNS_TO_TRY = 30;
+
+    private final HttpFetcher http;
+
+    public BookMetadataLookupService() {
+        this(new UrlHttpFetcher());
+    }
+
+    public BookMetadataLookupService(HttpFetcher http) {
+        this.http = http;
+    }
 
     public enum Source {
         GOOGLE_BOOKS,
@@ -103,12 +105,10 @@ public class BookMetadataLookupService {
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     public MetadataResult resolveMetadata(String isbn) {
         return lookup(isbn);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     private MetadataResult lookup(String isbn) {
         MetadataResult direct = tryGoogleBooks(isbn);
         if (direct != null) {
@@ -139,13 +139,9 @@ public class BookMetadataLookupService {
         return MetadataResult.error(null);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     private MetadataResult tryGoogleBooks(String isbn) {
         try {
-            URL url = new URL(GOOGLE_API_LINK + isbn + GOOGLE_API_KEY_PARAM);
-            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
-            String content = br.lines().collect(Collectors.joining());
-            br.close();
+            String content = http.get(GOOGLE_API_LINK + isbn + GOOGLE_API_KEY_PARAM);
 
             if (content.contains("\"totalItems\": 0")) {
                 return null;
@@ -215,13 +211,9 @@ public class BookMetadataLookupService {
      * Returns an empty list (never null) if the request fails or no related ISBNs are found, so
      * callers can iterate the result unconditionally.
      */
-    @RequiresApi(api = Build.VERSION_CODES.N)
     private List<String> fetchRelatedIsbns(String isbn) {
         try {
-            URL url = new URL(LIBRARY_THING_LINK + isbn);
-            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
-            String xml = br.lines().collect(Collectors.joining());
-            br.close();
+            String xml = http.get(LIBRARY_THING_LINK + isbn);
             return parseIsbnList(xml);
         } catch (IOException e) {
             e.printStackTrace();
@@ -244,13 +236,9 @@ public class BookMetadataLookupService {
         return isbns;
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     private MetadataResult tryLibraryOfCongress(String isbn) {
         try {
-            URL url = new URL(LOC_LINK + isbn + LOC_LINK_SUFFIX);
-            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
-            String xml = br.lines().collect(Collectors.joining());
-            br.close();
+            String xml = http.get(LOC_LINK + isbn + LOC_LINK_SUFFIX);
             return parseLocMods(xml, isbn);
         } catch (IOException e) {
             e.printStackTrace();
@@ -343,13 +331,9 @@ public class BookMetadataLookupService {
         return null;
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     private MetadataResult tryBiblio(String isbn) {
         try {
-            URL url = new URL(BIBLIO_LINK + isbn);
-            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
-            String content = br.lines().collect(Collectors.joining());
-            br.close();
+            String content = http.get(BIBLIO_LINK + isbn);
 
             if (content.contains("Page not Found")) {
                 return null;

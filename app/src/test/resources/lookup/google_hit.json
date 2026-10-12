@@ -1,0 +1,82 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 379,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "0yfauGsKOjAC",
+      "etag": "e6RsqLrY3nw",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/0yfauGsKOjAC",
+      "volumeInfo": {
+        "title": "F. Scott Fitzgerald: The Great Gatsby",
+        "authors": [
+          "F. Scott Fitzgerald"
+        ],
+        "publisher": "Cambridge University Press",
+        "publishedDate": "1991-08-30",
+        "description": "Classical portrayal of love and violence during the Twenties.",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_10",
+            "identifier": "0521402301"
+          },
+          {
+            "type": "ISBN_13",
+            "identifier": "9780521402309"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": true
+        },
+        "pageCount": 288,
+        "printType": "BOOK",
+        "categories": [
+          "Fiction"
+        ],
+        "averageRating": 4,
+        "ratingsCount": 6,
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "0.9.12.0.preview.1",
+        "panelizationSummary": {
+          "containsEpubBubbles": false,
+          "containsImageBubbles": false
+        },
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=0yfauGsKOjAC&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=0yfauGsKOjAC&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "en",
+        "previewLink": "http://books.google.com/books?id=0yfauGsKOjAC&printsec=frontcover&dq=gatsby+fitzgerald&hl=&cd=1&source=gbs_api",
+        "infoLink": "http://books.google.com/books?id=0yfauGsKOjAC&dq=gatsby+fitzgerald&hl=&source=gbs_api",
+        "canonicalVolumeLink": "https://books.google.com/books/about/F_Scott_Fitzgerald_The_Great_Gatsby.html?hl=&id=0yfauGsKOjAC"
+      },
+      "saleInfo": {
+        "country": "US",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "US",
+        "viewability": "PARTIAL",
+        "embeddable": true,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": true,
+          "acsTokenLink": "http://books.google.com/books/download/F_Scott_Fitzgerald_The_Great_Gatsby-sample-pdf.acsm?id=0yfauGsKOjAC&format=pdf&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=0yfauGsKOjAC&hl=&source=gbs_api",
+        "accessViewStatus": "SAMPLE",
+        "quoteSharingAllowed": false
+      },
+      "searchInfo": {
+        "textSnippet": "Classical portrayal of love and violence during the Twenties."
+      }
+    }
+  ]
+}

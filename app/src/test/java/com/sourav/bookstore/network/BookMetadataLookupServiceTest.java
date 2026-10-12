@@ -80,6 +80,15 @@ public class BookMetadataLookupServiceTest {
     }
 
     @Test
+    public void parseLocMods_returnsNull_whenLocReportsItselfUnavailable() {
+        // A real response: an SRU diagnostic with no <zs:numberOfRecords> at all.
+        BookMetadataLookupService.MetadataResult result =
+                service.parseLocMods(Fixtures.read("loc_unavailable.xml"), "9780743273565");
+
+        assertNull(result);
+    }
+
+    @Test
     public void parseLocMods_returnsNull_forMalformedXml() {
         BookMetadataLookupService.MetadataResult result = service.parseLocMods("not xml at all", "0000000000");
 
