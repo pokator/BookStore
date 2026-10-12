@@ -41,6 +41,11 @@ public class LiveLookupSmokeTest {
     }
 
     @Test
+    public void openLibrary_resolvesAnIsbn() {
+        assertTitleContains("gatsby", service.tryOpenLibrary("9780743273565"));
+    }
+
+    @Test
     public void googleBooks_resolvesAnIsbn() {
         assertTitleContains("gatsby", service.tryGoogleBooks("9780743273565"));
     }

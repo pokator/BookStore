@@ -44,6 +44,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
@@ -120,6 +121,12 @@ public class ScanToResultFlowTest {
         return fragment.requireView().findViewById(id).getVisibility();
     }
 
+    /** The bitmap in the cover ImageView; setImageBitmap(null) leaves a drawable wrapping null. */
+    private Bitmap shownCover(HomeFragment fragment) {
+        ImageView thumb = fragment.requireView().findViewById(R.id.thumb);
+        return thumb.getDrawable() == null ? null : ((BitmapDrawable) thumb.getDrawable()).getBitmap();
+    }
+
     private static EditText findEditText(View view) {
         if (view instanceof EditText) {
             return (EditText) view;
@@ -157,7 +164,7 @@ public class ScanToResultFlowTest {
         assertEquals("F. Scott Fitzgerald", text(fragment, R.id.book_author));
         assertEquals(context.getString(R.string.status_not_owned), text(fragment, R.id.ownership_banner));
         assertEquals(View.VISIBLE, visibility(fragment, R.id.add_button));
-        assertTrue(http.requests.get(0).contains("q=isbn:" + GATSBY));
+        assertTrue(http.countRequests(GATSBY) > 0);
     }
 
     @Test
@@ -169,8 +176,32 @@ public class ScanToResultFlowTest {
 
         assertEquals(1, thumbnailRequests.size());
         assertTrue(thumbnailRequests.get(0).startsWith("http://books.google.com/books/content"));
-        ImageView thumb = fragment.requireView().findViewById(R.id.thumb);
-        assertSame(cover, ((BitmapDrawable) thumb.getDrawable()).getBitmap());
+        assertSame(cover, shownCover(fragment));
+    }
+
+    @Test
+    public void anOpenLibraryResult_showsItsCover() {
+        http.respond("openlibrary.org/api/books", Fixtures.read("openlibrary_catcher.json"));
+        HomeFragment fragment = attachFragment();
+
+        scan(fragment, Barcode.EAN_13, CATCHER);
+
+        assertEquals("The Catcher in the Rye", text(fragment, R.id.book_title));
+        assertEquals("J. D. Salinger, Shao jia yun", text(fragment, R.id.book_author));
+        assertEquals(1, thumbnailRequests.size());
+        assertEquals("https://covers.openlibrary.org/b/id/15172531-M.jpg", thumbnailRequests.get(0));
+    }
+
+    @Test
+    public void aResultWithNoCover_clearsTheThumbnail_andFetchesNothing() {
+        http.respond("openlibrary.org/api/books", Fixtures.read("openlibrary_nocover.json"));
+        HomeFragment fragment = attachFragment();
+
+        scan(fragment, Barcode.EAN_13, "9781529100778");
+
+        assertEquals("Juniper and Thorn", text(fragment, R.id.book_title));
+        assertTrue(thumbnailRequests.isEmpty());
+        assertNull(shownCover(fragment));
     }
 
     @Test

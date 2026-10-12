@@ -17,6 +17,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(RobolectricTestRunner.class)
 public class BookMetadataLookupChainTest {
 
+    static final String OPEN_LIBRARY = "openlibrary.org/api/books";
     static final String GOOGLE = "googleapis.com/books/v1/volumes?q=isbn:";
     static final String LIBRARY_THING = "/thingISBN/";
     static final String LOC = "bath.isbn=";
@@ -33,8 +34,22 @@ public class BookMetadataLookupChainTest {
     }
 
     @Test
-    public void googleHit_isReturnedWithoutAskingAnyOtherSource() {
+    public void openLibraryHit_isReturnedWithoutAskingAnyOtherSource() {
         FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_catcher.json"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
+
+        assertEquals(BookMetadataLookupService.Source.OPEN_LIBRARY, result.source);
+        assertEquals("The Catcher in the Rye", result.metadata.title);
+        assertEquals(CATCHER, result.resolvedIsbn);
+        assertEquals(1, http.requests.size());
+    }
+
+    @Test
+    public void openLibraryMiss_fallsBackToGoogle_withoutAskingAnyOtherSource() {
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
                 .respond(GOOGLE + GATSBY, Fixtures.read("google_hit.json"));
 
         BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
@@ -44,12 +59,15 @@ public class BookMetadataLookupChainTest {
         assertEquals("F. Scott Fitzgerald", result.metadata.author);
         assertTrue(result.metadata.thumbnailUrl.startsWith("http://books.google.com/books/content"));
         assertEquals(GATSBY, result.resolvedIsbn);
-        assertEquals(1, http.requests.size());
+        assertEquals(2, http.requests.size());
+        assertTrue(http.requests.get(0).contains(OPEN_LIBRARY));
+        assertTrue(http.requests.get(1).contains(GOOGLE + GATSBY));
     }
 
     @Test
     public void googleMiss_fallsBackToARelatedEditionFromLibraryThing_resolvedViaLoc() {
         FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
                 .respond(GOOGLE, Fixtures.read("google_miss.json"))
                 .respond(LIBRARY_THING + CATCHER, Fixtures.read("librarything_catcher.xml"))
                 .respond(LOC + CATCHER_RELATED_1, Fixtures.read("loc_gatsby.xml"))
@@ -59,11 +77,12 @@ public class BookMetadataLookupChainTest {
 
         assertEquals(BookMetadataLookupService.Source.LIBRARY_OF_CONGRESS, result.source);
         assertEquals(CATCHER_RELATED_1, result.resolvedIsbn);
-        assertEquals(4, http.requests.size());
-        assertTrue(http.requests.get(0).contains(GOOGLE + CATCHER));
-        assertTrue(http.requests.get(1).contains(LIBRARY_THING + CATCHER));
-        assertTrue(http.requests.get(2).contains(GOOGLE + CATCHER_RELATED_1));
-        assertTrue(http.requests.get(3).contains(LOC + CATCHER_RELATED_1));
+        assertEquals(5, http.requests.size());
+        assertTrue(http.requests.get(0).contains(OPEN_LIBRARY));
+        assertTrue(http.requests.get(1).contains(GOOGLE + CATCHER));
+        assertTrue(http.requests.get(2).contains(LIBRARY_THING + CATCHER));
+        assertTrue(http.requests.get(3).contains(GOOGLE + CATCHER_RELATED_1));
+        assertTrue(http.requests.get(4).contains(LOC + CATCHER_RELATED_1));
     }
 
     @Test

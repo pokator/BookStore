@@ -387,15 +387,12 @@ public class HomeFragment extends Fragment implements View.OnClickListener,
         titleText.setText(title);
         authorText.setText(author);
 
-        if (source == BookMetadataLookupService.Source.GOOGLE_BOOKS) {
-            if (thumbnailUrl != null) {
-                new ThumbnailTask(this, thumbnailFetcher).execute(thumbnailUrl);
-            } else {
-                thumb.setImageBitmap(null);
-            }
+        // Open Library and Google Books may resolve a cover; Library of Congress never does.
+        if (thumbnailUrl != null) {
+            new ThumbnailTask(this, thumbnailFetcher).execute(thumbnailUrl);
+        } else {
+            thumb.setImageBitmap(null);
         }
-        // Neither LIBRARY_OF_CONGRESS nor HTML_FALLBACK ever resolves a thumbnail -- leave
-        // whatever is showing as-is.
 
         // Prefer the ISBN the lookup settled on (a related edition's, when the scanned one missed)
         // and fall back to what was scanned/typed, so the ISBN tier has something to work with

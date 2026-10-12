@@ -18,11 +18,8 @@ public class BookLookupTask extends AsyncTask<String, Void, BookMetadataLookupSe
         void onIsbnResolved(String isbn);
 
         /**
-         * @param source selects both the display prefix ("TITLE: "/"AUTHOR(S): " for the
-         *               structured sources vs "Title: "/"Author: " for the scraped HTML
-         *               fallback) and whether a missing thumbnailUrl should clear the current
-         *               thumbnail (Google Books only) or leave it untouched (the other two
-         *               sources never resolve one).
+         * @param thumbnailUrl a cover image to fetch, or null if the source didn't resolve one.
+         * @param source       which metadata source answered.
          */
         void onBookFound(String title, String author, String thumbnailUrl, BookMetadataLookupService.Source source);
 

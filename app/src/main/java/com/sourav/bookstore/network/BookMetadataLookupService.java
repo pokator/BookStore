@@ -22,7 +22,9 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 /**
- * Given an ISBN, resolves book metadata in this order: Google Books directly; if that has no
+ * Given an ISBN, resolves book metadata in this order: Open Library directly (keyless, and the
+ * only source that still answers ISBN queries reliably since Google Books' {@code isbn:} search
+ * started returning zero results in late September 2026); then Google Books directly; if that has no
  * match, LibraryThing's thingISBN API is asked for the ISBNs of other editions of the same work
  * (a simple {@code <idlist><isbn>...</isbn>...</idlist>} XML document), and each of those is
  * tried against Google Books, then the Library of Congress's SRU/MODS catalog, until one hits;
@@ -32,6 +34,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
  */
 public class BookMetadataLookupService {
 
+    private static final String OPEN_LIBRARY_LINK = "https://openlibrary.org/api/books?format=json&jscmd=data&bibkeys=ISBN:";
     private static final String LIBRARY_THING_LINK = "https://www.librarything.com/api/" + BuildConfig.LIBRARY_THING_API_KEY + "/thingISBN/";
     private static final String GOOGLE_API_LINK = "https://www.googleapis.com/books/v1/volumes?q=isbn:";
     private static final String GOOGLE_API_KEY_PARAM = "&key=" + BuildConfig.GOOGLE_BOOKS_API_KEY;
@@ -57,6 +60,7 @@ public class BookMetadataLookupService {
     }
 
     public enum Source {
+        OPEN_LIBRARY,
         GOOGLE_BOOKS,
         LIBRARY_OF_CONGRESS,
         HTML_FALLBACK
@@ -110,6 +114,11 @@ public class BookMetadataLookupService {
     }
 
     private MetadataResult lookup(String isbn) {
+        MetadataResult openLibrary = tryOpenLibrary(isbn);
+        if (openLibrary != null) {
+            return openLibrary;
+        }
+
         MetadataResult direct = tryGoogleBooks(isbn);
         if (direct != null) {
             return direct;
@@ -137,6 +146,61 @@ public class BookMetadataLookupService {
         }
 
         return MetadataResult.error(null);
+    }
+
+    MetadataResult tryOpenLibrary(String isbn) {
+        try {
+            return parseOpenLibraryJson(http.get(OPEN_LIBRARY_LINK + isbn), isbn);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Parses an Open Library Books API response ({@code jscmd=data}), e.g. (trimmed):
+     * <pre>{@code
+     * {"ISBN:9780316769488": {
+     *   "title": "The Catcher in the Rye",
+     *   "authors": [{"name": "J. D. Salinger", "url": "..."}],
+     *   "cover": {"small": "https://covers.openlibrary.org/b/id/15172531-S.jpg", "medium": "...-M.jpg", ...}
+     * }}
+     * }</pre>
+     * A miss is just {@code {}}. A record with no title is treated as a miss too, since there'd
+     * be nothing to show or store.
+     */
+    MetadataResult parseOpenLibraryJson(String content, String isbn) {
+        try {
+            JSONObject book = new JSONObject(content).optJSONObject("ISBN:" + isbn);
+            if (book == null) {
+                return null;
+            }
+            String title = book.optString("title", "");
+            if (title.isEmpty()) {
+                return null;
+            }
+
+            StringBuilder author = new StringBuilder();
+            JSONArray authors = book.optJSONArray("authors");
+            if (authors != null) {
+                for (int a = 0; a < authors.length(); a++) {
+                    String name = authors.getJSONObject(a).optString("name", "");
+                    if (name.isEmpty()) {
+                        continue;
+                    }
+                    if (author.length() > 0) author.append(", ");
+                    author.append(name);
+                }
+            }
+
+            JSONObject cover = book.optJSONObject("cover");
+            String thumbnailUrl = cover != null ? cover.optString("medium", null) : null;
+
+            return MetadataResult.found(Source.OPEN_LIBRARY, new BookMetadata(title, author.toString(), thumbnailUrl), isbn);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     MetadataResult tryGoogleBooks(String isbn) {
