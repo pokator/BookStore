@@ -51,6 +51,16 @@ public class LiveLookupSmokeTest {
     }
 
     @Test
+    public void googleBooksPage_resolvesASelfPublishedIsbn() {
+        assertTitleContains("tambuti", service.tryGoogleBooksPage("9798291908983"));
+    }
+
+    @Test
+    public void fullChain_resolvesASelfPublishedBook() {
+        assertTitleContains("tambuti", service.resolveMetadata("9798291908983"));
+    }
+
+    @Test
     public void libraryThing_listsRelatedEditions() {
         List<String> related = service.fetchRelatedIsbns("9780743273565");
 

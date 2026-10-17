@@ -1,0 +1,73 @@
+{
+  "kind": "books#volume",
+  "id": "zBSL0QEACAAJ",
+  "etag": "ftGjT9wA/R4",
+  "selfLink": "https://www.googleapis.com/books/v1/volumes/zBSL0QEACAAJ",
+  "volumeInfo": {
+    "title": "The Man-Eater of Tambuti",
+    "subtitle": "A Collection of Novel Tales",
+    "authors": [
+      "LARRY W. BUSSEY"
+    ],
+    "publisher": "Amazon Digital Services LLC - Kdp",
+    "publishedDate": "2025-07-24",
+    "description": "\u003cp\u003e\u003cb\u003eWhen the Hunter Becomes the Hunted\u003c/b\u003e\u003c/p\u003e\u003cp\u003e\u003ci\u003eRead for \u003cb\u003eFREE\u003c/b\u003e with Kindle Unlimited\u003c/i\u003e\u003c/p\u003e\u003cp\u003eDeep in the African bushveld, an ancient predator has developed a deadly preference-\u003cb\u003ehuman flesh\u003c/b\u003e. This isn't just another lion. This is a 600-pound killing machine with the intelligence of experience and the ruthlessness of a true apex predator.\u003c/p\u003e\u003cp\u003eFrom the storm-born cub who grows into a legend of terror, follow the chilling chronicle of Africa's most feared man-eater as he stalks human prey across the unforgiving landscapes of \u003cb\u003eNamibia and beyond\u003c/b\u003e. Professional hunters, corrupt officials, idealistic volunteers, seasoned trackers-\u003ci\u003enone are safe\u003c/i\u003e when this massive lion decides they're on the menu.\u003c/p\u003e\u003cp\u003eBased on \u003cb\u003e30 years of real African experience\u003c/b\u003e, these interconnected tales capture the raw truth about life and death in the bushveld-where a moment's carelessness can mean the difference between predator and prey. Each story reveals how quickly civilization's thin veneer crumbles when faced with nature's ultimate killing machine.\u003c/p\u003e\u003cp\u003e\u003cb\u003e★ Authentic African Adventure\u003c/b\u003e - Written by an author with 30 years of African experience\u003c/p\u003e\u003cp\u003e\u003cb\u003e★ Interconnected Stories\u003c/b\u003e - Follow the same legendary lion through multiple deadly encounters\u003c/p\u003e\u003cp\u003e\u003cb\u003e★ Gritty Realism\u003c/b\u003e - No Hollywood heroics, just the brutal reality of survival in the wild\u003c/p\u003e\u003cp\u003e\u003cb\u003e★ Expert Detail\u003c/b\u003e - From tracking techniques to animal behavior, every detail rings true\u003c/p\u003e\u003cp\u003ePerfect for fans of \u003cb\u003ePeter Capstick\u003c/b\u003e, \u003cb\u003eRobert Ruark\u003c/b\u003e, \u003cb\u003eTony Park\u003c/b\u003e, \u003cb\u003eWilbur Smith\u003c/b\u003e and classic African adventure tales.\u003c/p\u003e\u003cp\u003e\u003ci\u003eWarning: \u003c/i\u003e These stories contain graphic violence and mature themes. Africa doesn't apologize for its harsh realities-neither do these tales.\u003c/p\u003e\u003cp\u003e\u003cb\u003eThe bushveld has rules. Break them, and you become dinner.\u003c/b\u003e\u003c/p\u003e",
+    "industryIdentifiers": [
+      {
+        "type": "ISBN_13",
+        "identifier": "9798291908983"
+      }
+    ],
+    "readingModes": {
+      "text": false,
+      "image": false
+    },
+    "pageCount": 312,
+    "printedPageCount": 312,
+    "dimensions": {
+      "height": "22.90 cm",
+      "width": "15.20 cm",
+      "thickness": "1.80 cm"
+    },
+    "printType": "BOOK",
+    "categories": [
+      "Fiction / Action & Adventure"
+    ],
+    "maturityRating": "NOT_MATURE",
+    "allowAnonLogging": false,
+    "contentVersion": "preview-1.0.0",
+    "panelizationSummary": {
+      "containsEpubBubbles": false,
+      "containsImageBubbles": false
+    },
+    "imageLinks": {
+      "smallThumbnail": "http://books.google.com/books/content?id=zBSL0QEACAAJ&printsec=frontcover&img=1&zoom=5&imgtk=AFLRE70ocrhSmgAFc-YZO8D1rfn0IZhT7kKgPBB946SU7ES87uIHIdSxxRgNE7BzrXbWMliyjCUREquZqMgFsVhBrrDhYSjSWhTrw8ntpmzRcOxEpYNMEQRDHOs1mp7MUqlseJol7IMO&source=gbs_api",
+      "thumbnail": "http://books.google.com/books/content?id=zBSL0QEACAAJ&printsec=frontcover&img=1&zoom=1&imgtk=AFLRE71awjVyIJA_Lh9_jSDK6Y7eMX4MejQPVkVRJ1HdkLOwFujPuJN0zN7HpoMVpGuVrdk8WWBqOVX2g5Wu6Sm6qJWaB_X2beT9dKjtIYjOx2v193sisBb7voecSYWKAbBh9JpPwzUy&source=gbs_api"
+    },
+    "language": "en",
+    "previewLink": "http://books.google.com/books?id=zBSL0QEACAAJ&hl=&source=gbs_api",
+    "infoLink": "https://play.google.com/store/books/details?id=zBSL0QEACAAJ&source=gbs_api",
+    "canonicalVolumeLink": "https://play.google.com/store/books/details?id=zBSL0QEACAAJ"
+  },
+  "saleInfo": {
+    "country": "US",
+    "saleability": "NOT_FOR_SALE",
+    "isEbook": false
+  },
+  "accessInfo": {
+    "country": "US",
+    "viewability": "NO_PAGES",
+    "embeddable": false,
+    "publicDomain": false,
+    "textToSpeechPermission": "ALLOWED",
+    "epub": {
+      "isAvailable": false
+    },
+    "pdf": {
+      "isAvailable": false
+    },
+    "webReaderLink": "http://play.google.com/books/reader?id=zBSL0QEACAAJ&hl=&source=gbs_api",
+    "accessViewStatus": "NONE",
+    "quoteSharingAllowed": false
+  }
+}

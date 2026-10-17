@@ -154,4 +154,18 @@ public class BookMetadataLookupServiceTest {
 
         assertTrue(isbns.isEmpty());
     }
+
+    @Test
+    public void parseGoogleBooksPageVolumeId_readsTheCanonicalLinksId() {
+        // The real books.google.com/books?vid=ISBN9798291908983 page, captured 2026-10-17.
+        String html = Fixtures.read("googlepage_tambuti.html");
+
+        assertEquals("zBSL0QEACAAJ", BookMetadataLookupService.parseGoogleBooksPageVolumeId(html));
+    }
+
+    @Test
+    public void parseGoogleBooksPageVolumeId_isNull_whenThePageHasNoCanonicalLink() {
+        assertNull(BookMetadataLookupService.parseGoogleBooksPageVolumeId(
+                "<html><head><title>Google Books</title></head><a href=\"/books?id=zBSL0QEACAAJ\"></a></html>"));
+    }
 }

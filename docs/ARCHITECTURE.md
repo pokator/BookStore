@@ -124,8 +124,18 @@ Given an ISBN, `resolveMetadata` resolves book metadata in this order:
 2. **Google Books API** — `GET https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}&key={key}`.
    If this returns items, the JSON is parsed for `title`, `authors`, and a thumbnail URL. Kept so
    lookups recover on their own if Google fixes `isbn:` search.
-3. **Library of Congress SRU/MODS catalog** for the scanned ISBN (details under step 5).
-4. **LibraryThing `thingISBN`** — only if steps 1–3 all missed. — `GET https://www.librarything.com/api/{key}/thingISBN/{isbn}`
+3. **Library of Congress SRU/MODS catalog** for the scanned ISBN (details under step 6).
+4. **Google Books, via its website** (`tryGoogleBooksPage`) — the route around the broken
+   `isbn:` search. `GET https://books.google.com/books?vid=ISBN{isbn}` still resolves an ISBN
+   (HTTP 404 if Google doesn't know it); the page's `<link rel="canonical" href="...?id={volumeId}">`
+   gives the volume id (`parseGoogleBooksPageVolumeId`), and
+   `GET https://www.googleapis.com/books/v1/volumes/{volumeId}?key={key}` returns its record
+   (`parseGoogleVolumeJson`, same `volumeInfo` fields as step 2). The record is accepted only if
+   its `industryIdentifiers` list the scanned ISBN and it has a title, since the id was scraped
+   from HTML. This is what finds self-published (979-8 / Amazon KDP) ISBNs, which Open Library,
+   LOC and LibraryThing generally don't carry. It sits behind the real APIs because it depends
+   on Google's page markup: if that changes, the id stops matching and this step quietly misses.
+5. **LibraryThing `thingISBN`** — only if steps 1–4 all missed. — `GET https://www.librarything.com/api/{key}/thingISBN/{isbn}`
    (**must be `https://`** — LibraryThing 301-redirects plain `http://` requests via Cloudflare,
    and `URL#openStream()` does not follow cross-protocol redirects, so an `http://` link here
    silently gets the redirect page instead of API data). Returns an
@@ -135,7 +145,7 @@ Given an ISBN, `resolveMetadata` resolves book metadata in this order:
    Library of Congress**, before moving to the next candidate. This is deliberately last:
    LibraryThing's lists occasionally include an unrelated book (Catcher in the Rye's includes a
    psychology text), and a hit on any listed ISBN is trusted as-is.
-5. **Library of Congress SRU/MODS catalog** — `GET http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=bath.isbn={isbn}&maximumRecords=1&recordSchema=mods`
+6. **Library of Congress SRU/MODS catalog** — `GET http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=bath.isbn={isbn}&maximumRecords=1&recordSchema=mods`
    (plain `http://`, confirmed not to redirect — unlike LibraryThing, don't "fix" this to
    `https://`). A miss is `<zs:numberOfRecords>0</zs:numberOfRecords>` with no `<zs:records>` at
    all; when LOC's backend is down it instead answers with an SRU diagnostic ("System

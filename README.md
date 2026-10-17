@@ -11,8 +11,9 @@ metadata online and stores it locally in SQLite.
 - **Manual ISBN entry** — type an ISBN directly instead of scanning.
 - **Manual text entry** — type a title/author pair directly, bypassing lookup.
 - **Automatic metadata lookup** — given an ISBN, the app asks Open Library for title,
-  author(s), and a cover, then Google Books, then the Library of Congress's SRU/MODS catalog; if
-  all three miss, it asks LibraryThing's `thingISBN` API for ISBNs of other editions of the same
+  author(s), and a cover, then Google Books, then the Library of Congress's SRU/MODS catalog,
+  then Google Books again via its website (which finds self-published books); if all of those
+  miss, it asks LibraryThing's `thingISBN` API for ISBNs of other editions of the same
   work and retries each against Open Library, then the Library of Congress.
 - **"Do I already own this?"** — as soon as a scanned or entered book loads, the preview card
   says whether it's already in your library. Matching is fuzzy, so a different edition, a

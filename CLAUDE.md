@@ -82,8 +82,11 @@ Test sources under `app/src/test/java/com/sourav/bookstore/` mirror this package
   near-misses it must not (same author different book, same title different author).
 - **Metadata lookup fallback chain** (`network.BookMetadataLookupService.resolveMetadata`,
   called from `ui.home.BookLookupTask.doInBackground`): the scanned ISBN against Open Library
-  (keyless), then Google Books (keyed), then the Library of Congress SRU/MODS catalog; only if
-  all three miss, LibraryThing's `thingISBN` API for related-edition ISBNs (real XML parsing via
+  (keyless), then Google Books (keyed), then the Library of Congress SRU/MODS catalog, then
+  `tryGoogleBooksPage` (scrapes the volume id from `books.google.com/books?vid=ISBN…`'s canonical
+  link, fetches `/volumes/{id}`, and accepts it only if it lists the scanned ISBN — the only
+  source that finds self-published 979-8 ISBNs; it's behind the real APIs because it depends on
+  page markup); only if all of those miss, LibraryThing's `thingISBN` API for related-edition ISBNs (real XML parsing via
   `DocumentBuilder`, capped at `MAX_RELATED_ISBNS_TO_TRY`), each tried against Open Library then
   LOC. Keep related editions last: LibraryThing's lists sometimes contain an unrelated book, and
   any hit on one is trusted. Google Books' `isbn:` search has returned zero results for every

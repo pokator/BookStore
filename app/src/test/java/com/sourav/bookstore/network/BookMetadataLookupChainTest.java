@@ -21,12 +21,17 @@ public class BookMetadataLookupChainTest {
     static final String GOOGLE = "googleapis.com/books/v1/volumes?q=isbn:";
     static final String LIBRARY_THING = "/thingISBN/";
     static final String LOC = "bath.isbn=";
+    static final String GOOGLE_PAGE = "books.google.com/books?vid=ISBN";
+    static final String GOOGLE_VOLUME = "googleapis.com/books/v1/volumes/";
 
     private static final String GATSBY = "9780743273565";
     private static final String CATCHER = "9780316769488";
     // The first two related ISBNs LibraryThing lists for CATCHER (see librarything_catcher.xml).
     private static final String CATCHER_RELATED_1 = "0316769177";
     private static final String CATCHER_RELATED_2 = "0316769487";
+    // Self-published (KDP); of all the sources, only Google Books' website knows it.
+    private static final String TAMBUTI = "9798291908983";
+    private static final String TAMBUTI_VOLUME_ID = "zBSL0QEACAAJ";
 
     private BookMetadataLookupService.MetadataResult resolve(FakeHttpFetcher http, String isbn) {
         return new BookMetadataLookupService(http).resolveMetadata(isbn);
@@ -70,19 +75,21 @@ public class BookMetadataLookupChainTest {
                 .respond(GOOGLE, Fixtures.read("google_miss.json"))
                 .respond(LIBRARY_THING + CATCHER, Fixtures.read("librarything_catcher.xml"))
                 .respond(LOC + CATCHER_RELATED_1, Fixtures.read("loc_gatsby.xml"))
-                .respond(LOC, Fixtures.read("loc_miss.xml"));
+                .respond(LOC, Fixtures.read("loc_miss.xml"))
+                .fail(GOOGLE_PAGE);
 
         BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
 
         assertEquals(BookMetadataLookupService.Source.LIBRARY_OF_CONGRESS, result.source);
         assertEquals(CATCHER_RELATED_1, result.resolvedIsbn);
-        assertEquals(6, http.requests.size());
+        assertEquals(7, http.requests.size());
         assertTrue(http.requests.get(0).contains(OPEN_LIBRARY) && http.requests.get(0).endsWith(CATCHER));
         assertTrue(http.requests.get(1).contains(GOOGLE + CATCHER));
         assertTrue(http.requests.get(2).contains(LOC + CATCHER));
-        assertTrue(http.requests.get(3).contains(LIBRARY_THING + CATCHER));
-        assertTrue(http.requests.get(4).contains(OPEN_LIBRARY) && http.requests.get(4).endsWith(CATCHER_RELATED_1));
-        assertTrue(http.requests.get(5).contains(LOC + CATCHER_RELATED_1));
+        assertTrue(http.requests.get(3).contains(GOOGLE_PAGE + CATCHER));
+        assertTrue(http.requests.get(4).contains(LIBRARY_THING + CATCHER));
+        assertTrue(http.requests.get(5).contains(OPEN_LIBRARY) && http.requests.get(5).endsWith(CATCHER_RELATED_1));
+        assertTrue(http.requests.get(6).contains(LOC + CATCHER_RELATED_1));
     }
 
     @Test
@@ -169,12 +176,68 @@ public class BookMetadataLookupChainTest {
                 .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
                 .respond(GOOGLE, Fixtures.read("google_miss.json"))
                 .respond(LOC, Fixtures.read("loc_miss.xml"))
+                .fail(GOOGLE_PAGE)
                 .fail(LIBRARY_THING);
 
         BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
 
         assertTrue(result.isError());
-        assertEquals(4, http.requests.size());
+        assertEquals(5, http.requests.size());
+    }
+
+    @Test
+    public void locMiss_fallsBackToGoogleBooksPage_beforeAnyRelatedEdition() {
+        // The 2026-10-17 device report: a 979-8 ISBN that Open Library, Google's isbn: search
+        // and LOC all miss, but Google Books' website still knows.
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .respond(LOC, Fixtures.read("loc_miss.xml"))
+                .respond(GOOGLE_PAGE + TAMBUTI, Fixtures.read("googlepage_tambuti.html"))
+                .respond(GOOGLE_VOLUME + TAMBUTI_VOLUME_ID, Fixtures.read("googlevolume_tambuti.json"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, TAMBUTI);
+
+        assertEquals(BookMetadataLookupService.Source.GOOGLE_BOOKS, result.source);
+        assertEquals("The Man-Eater of Tambuti", result.metadata.title);
+        assertEquals("LARRY W. BUSSEY", result.metadata.author);
+        assertTrue(result.metadata.thumbnailUrl.startsWith("http://books.google.com/books/content?id=" + TAMBUTI_VOLUME_ID));
+        assertEquals(TAMBUTI, result.resolvedIsbn);
+        assertEquals(5, http.requests.size());
+        assertTrue(http.requests.get(3).contains(GOOGLE_PAGE + TAMBUTI));
+        assertTrue(http.requests.get(4).contains(GOOGLE_VOLUME + TAMBUTI_VOLUME_ID));
+        assertEquals(0, http.countRequests(LIBRARY_THING));
+    }
+
+    @Test
+    public void googleBooksPage_landingOnAVolumeWithoutTheScannedIsbn_isAMiss() {
+        // The id is scraped from a web page, so the volume must actually list the scanned ISBN.
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .respond(OPEN_LIBRARY, Fixtures.read("openlibrary_miss.json"))
+                .respond(GOOGLE, Fixtures.read("google_miss.json"))
+                .respond(LOC, Fixtures.read("loc_miss.xml"))
+                .respond(GOOGLE_PAGE, Fixtures.read("googlepage_tambuti.html"))
+                .respond(GOOGLE_VOLUME, Fixtures.read("googlevolume_tambuti.json"))
+                .fail(LIBRARY_THING);
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, GATSBY);
+
+        assertTrue(result.isError());
+        assertEquals(1, http.countRequests(GOOGLE_VOLUME));
+    }
+
+    @Test
+    public void googleBooksPage404_isAMiss_andRelatedEditionsAreStillTried() {
+        // books.google.com answers an ISBN it doesn't know with HTTP 404.
+        FakeHttpFetcher http = new FakeHttpFetcher()
+                .fail(GOOGLE_PAGE)
+                .respond(LIBRARY_THING + CATCHER, Fixtures.read("librarything_catcher.xml"))
+                .respond(LOC + CATCHER_RELATED_1, Fixtures.read("loc_gatsby.xml"));
+
+        BookMetadataLookupService.MetadataResult result = resolve(http, CATCHER);
+
+        assertEquals(CATCHER_RELATED_1, result.resolvedIsbn);
+        assertEquals(0, http.countRequests(GOOGLE_VOLUME));
     }
 
     @Test

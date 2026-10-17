@@ -16,6 +16,8 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -24,8 +26,10 @@ import javax.xml.parsers.DocumentBuilderFactory;
  * Given an ISBN, resolves book metadata in this order: the scanned ISBN itself against Open
  * Library (keyless, and the only source that still answers ISBN queries reliably since Google
  * Books' {@code isbn:} search started returning zero results in late September 2026), then
- * Google Books, then the Library of Congress's SRU/MODS catalog. Only if all three miss is
- * LibraryThing's thingISBN API asked for the ISBNs of other editions of the same work (a simple
+ * Google Books, then the Library of Congress's SRU/MODS catalog, then Google Books again by a
+ * route that doesn't depend on the broken {@code isbn:} search (see {@link #tryGoogleBooksPage};
+ * it's what finds self-published 979-8 ISBNs, which none of the other catalogs carry). Only if
+ * all of those miss is LibraryThing's thingISBN API asked for the ISBNs of other editions of the same work (a simple
  * {@code <idlist><isbn>...</isbn>...</idlist>} XML document), each of which is tried against
  * Open Library, then LOC, until one hits. Related editions are a last resort on purpose:
  * LibraryThing's lists occasionally include an unrelated book (Catcher in the Rye's lists a
@@ -42,6 +46,12 @@ public class BookMetadataLookupService {
     private static final String GOOGLE_API_KEY_PARAM = "&key=" + BuildConfig.GOOGLE_BOOKS_API_KEY;
     private static final String LOC_LINK = "http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=bath.isbn=";
     private static final String LOC_LINK_SUFFIX = "&maximumRecords=1&recordSchema=mods";
+    private static final String GOOGLE_BOOKS_PAGE_LINK = "https://books.google.com/books?vid=ISBN";
+    private static final String GOOGLE_VOLUME_LINK = "https://www.googleapis.com/books/v1/volumes/";
+
+    /** The volume id in a Google Books page's {@code <link rel="canonical" href="...?id=zBSL0QEACAAJ"/>}. */
+    private static final Pattern CANONICAL_VOLUME_ID =
+            Pattern.compile("rel=\"canonical\"[^>]*?href=\"[^\"]*[?&]id=([A-Za-z0-9_-]+)");
 
     /**
      * A popular work can have hundreds of related editions in LibraryThing's idlist; bound how
@@ -135,6 +145,11 @@ public class BookMetadataLookupService {
         MetadataResult loc = tryLibraryOfCongress(isbn);
         if (loc != null) {
             return loc;
+        }
+
+        MetadataResult googlePage = tryGoogleBooksPage(isbn);
+        if (googlePage != null) {
+            return googlePage;
         }
 
         List<String> relatedIsbns = fetchRelatedIsbns(isbn);
@@ -240,8 +255,15 @@ public class BookMetadataLookupService {
             JSONObject resultObject = new JSONObject(content);
             JSONArray bookArray = resultObject.getJSONArray("items");
             JSONObject bookObject = bookArray.getJSONObject(0);
-            JSONObject volumeObject = bookObject.getJSONObject("volumeInfo");
+            return volumeInfoToResult(bookObject.getJSONObject("volumeInfo"), isbn);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 
+    private MetadataResult volumeInfoToResult(JSONObject volumeObject, String isbn) {
+        try {
             String title;
             try {
                 title = volumeObject.getString("title");
@@ -278,6 +300,68 @@ public class BookMetadataLookupService {
             e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * Fallback for Google Books' {@code isbn:} search, which has returned zero results for every
+     * query since late September 2026 even though the books are still in Google's catalog. The
+     * public page {@code books.google.com/books?vid=ISBN<isbn>} still resolves an ISBN (404 if
+     * Google doesn't know it), and its canonical link carries the volume id, which the volumes
+     * API answers normally. This reads an id out of a web page, so it's a fallback behind the
+     * real APIs: if Google changes the page, {@link #parseGoogleBooksPageVolumeId} stops finding
+     * an id and this quietly becomes a miss.
+     */
+    MetadataResult tryGoogleBooksPage(String isbn) {
+        try {
+            String volumeId = parseGoogleBooksPageVolumeId(http.get(GOOGLE_BOOKS_PAGE_LINK + isbn));
+            if (volumeId == null) {
+                return null;
+            }
+            String content = http.get(GOOGLE_VOLUME_LINK + volumeId + "?key=" + BuildConfig.GOOGLE_BOOKS_API_KEY);
+            return parseGoogleVolumeJson(content, isbn);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    static String parseGoogleBooksPageVolumeId(String html) {
+        Matcher matcher = CANONICAL_VOLUME_ID.matcher(html);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    /**
+     * Parses a single-volume response ({@code /volumes/<id>}: the same {@code volumeInfo} as one
+     * search result, without the {@code items} wrapper). The volume must list {@code isbn} among
+     * its {@code industryIdentifiers} and have a title -- the id came from scraping a page, so
+     * this guards against landing on some other book.
+     */
+    MetadataResult parseGoogleVolumeJson(String content, String isbn) {
+        try {
+            JSONObject volumeInfo = new JSONObject(content).getJSONObject("volumeInfo");
+            String title = stringOrNull(volumeInfo, "title");
+            if (title == null || title.isEmpty() || !listsIsbn(volumeInfo, isbn)) {
+                return null;
+            }
+            return volumeInfoToResult(volumeInfo, isbn);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private static boolean listsIsbn(JSONObject volumeInfo, String isbn) {
+        JSONArray identifiers = volumeInfo.optJSONArray("industryIdentifiers");
+        if (identifiers == null) {
+            return false;
+        }
+        for (int i = 0; i < identifiers.length(); i++) {
+            JSONObject identifier = identifiers.optJSONObject(i);
+            if (identifier != null && isbn.equalsIgnoreCase(identifier.optString("identifier"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
